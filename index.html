@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>StaffLink</title>
+<title>EdgeOps</title>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -178,15 +178,57 @@
   .form-input:focus, .form-textarea:focus { border-color: var(--green); }
   .form-textarea { resize: none; min-height: 100px; line-height: 1.6; }
 
+  /* ── 優先度バッジ ── */
+  .priority-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 700; padding: 2px 8px;
+    border-radius: 10px; margin-bottom: 6px;
+  }
+  .priority-urgent { background: #ffeaea; color: #c62828; border: 1px solid #e53935; }
+  .priority-normal { background: #fffde7; color: #f57f17; border: 1px solid #f9a825; }
+  .priority-info   { background: #f1f8f4; color: #2e7d32; border: 1px solid #66bb6a; }
+
   /* ── メッセージカード ── */
   .msg-card {
     padding: 14px 16px;
     border-bottom: 1px solid var(--border);
     cursor: pointer;
     transition: background 0.1s;
+    border-left: 4px solid transparent;
   }
+  .msg-card.urgent { border-left-color: #e53935; background: #fffafa; }
+  .msg-card.normal { border-left-color: #f9a825; background: #fffef5; }
   .msg-card:last-child { border-bottom: none; }
   .msg-card:active { background: #f8f9fc; }
+
+  /* ── 月別ヘッダー・アコーディオン ── */
+  .month-section { margin-bottom: 4px; }
+  .month-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; cursor: pointer; user-select: none;
+  }
+  .month-header:active { opacity: 0.7; }
+  .month-label {
+    font-size: 13px; font-weight: 700; color: var(--text-mid);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .month-label::before {
+    content: ''; display: inline-block;
+    width: 24px; height: 2px; background: var(--green); border-radius: 1px;
+  }
+  .month-toggle { font-size: 12px; color: var(--text-light); transition: transform 0.25s; }
+  .month-toggle.open { transform: rotate(0deg); }
+  .month-toggle.closed { transform: rotate(-90deg); }
+  .month-body { overflow: hidden; transition: max-height 0.3s ease; }
+  .month-body.collapsed { max-height: 0 !important; }
+
+  /* ── 優先度選択ボタン ── */
+  .priority-sel-btn {
+    text-align: center; padding: 10px 4px; border-radius: 10px;
+    font-size: 13px; font-weight: 700; border: 2px solid transparent;
+    transition: all 0.15s; opacity: 0.45;
+  }
+  .priority-sel-btn.selected { opacity: 1; transform: scale(1.04); }
 
   .msg-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
   .msg-meta { font-size: 12px; color: var(--text-light); margin-bottom: 8px; }
@@ -286,7 +328,7 @@
 
 <div class="loading" id="loading">
   <div class="spinner"></div>
-  <div style="color:#4a6080; font-size:14px;">StaffLink を起動中...</div>
+  <div style="color:#4a6080; font-size:14px;">EdgeOps を起動中...</div>
 </div>
 
 <div id="toast"></div>
@@ -295,8 +337,8 @@
 <div class="screen" id="screen-start">
   <div class="header">
     <div>
-      <div class="header-title">StaffLink</div>
-      <div class="header-sub">業務連絡支援アプリ / Staff Communication</div>
+      <div class="header-title">EdgeOps</div>
+      <div class="header-sub">業務連絡支援アプリ / エッジオペレーションズ</div>
     </div>
   </div>
   <div class="content">
@@ -356,7 +398,7 @@
 <div class="screen" id="screen-home">
   <div class="header">
     <div style="flex:1;">
-      <div class="header-title">StaffLink</div>
+      <div class="header-title">EdgeOps</div>
       <div class="header-sub" id="home-group-id-display"></div>
     </div>
     <div style="display:flex; gap:8px;">
@@ -391,6 +433,23 @@
     <div><div class="header-title">新しい連絡</div><div class="header-sub">New Message</div></div>
   </div>
   <div class="content">
+    <div class="form-group">
+      <label class="form-label">優先度 / Priority</label>
+      <div style="display:flex; gap:8px; margin-bottom:4px;">
+        <label style="flex:1; cursor:pointer;">
+          <input type="radio" name="priority" value="info" checked style="display:none;">
+          <div class="priority-sel-btn priority-info" id="psel-info" onclick="selectPriority('info')">🟢 連絡</div>
+        </label>
+        <label style="flex:1; cursor:pointer;">
+          <input type="radio" name="priority" value="normal" style="display:none;">
+          <div class="priority-sel-btn priority-normal" id="psel-normal" onclick="selectPriority('normal')">🟡 通常</div>
+        </label>
+        <label style="flex:1; cursor:pointer;">
+          <input type="radio" name="priority" value="urgent" style="display:none;">
+          <div class="priority-sel-btn priority-urgent" id="psel-urgent" onclick="selectPriority('urgent')">🔴 緊急</div>
+        </label>
+      </div>
+    </div>
     <div class="form-group">
       <label class="form-label">メッセージ内容 / Message</label>
       <textarea class="form-textarea" id="compose-body" placeholder="連絡内容を入力してください..."></textarea>
@@ -684,38 +743,121 @@ function renderMessages() {
     return;
   }
   const totalMembers = members.length;
-  container.innerHTML = messages.map(msg => {
-    const readPct = totalMembers > 0 ? (msg.read_count || 0) / totalMembers * 100 : 0;
-    const unreadCount = totalMembers - (msg.read_count || 0);
-    const senderName = getMemberName(msg.sender_line_uid);
-    const timeStr = formatTime(msg.created_at);
-    return `
-      <div class="msg-card" onclick="showDetail('${msg.id}')">
-        <div class="msg-title">${escHtml(msg.body.substring(0, 50))}${msg.body.length > 50 ? '...' : ''}</div>
-        <div class="msg-meta">${senderName}　${timeStr}</div>
-        <div class="msg-read-bar">
-          <div class="bar"><div class="bar-fill${readPct < 70 ? ' warn' : ''}" style="width:${readPct}%"></div></div>
-          <div class="read-count">${msg.read_count || 0}/${totalMembers}人既読</div>
-        </div>
-        ${unreadCount > 0 ? `<div class="unread-names">❌ 未読：詳細を確認してください</div>` : ''}
-      </div>
-    `;
-  }).join('');
+  const priorityOrder = { urgent: 0, normal: 1, info: 2 };
+
+  // 月別グループ化
+  const monthMap = {};
+  messages.forEach(msg => {
+    const d = new Date(msg.created_at);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    if (!monthMap[key]) monthMap[key] = [];
+    monthMap[key].push(msg);
+  });
+
+  // 月を新しい順にソート
+  const sortedMonths = Object.keys(monthMap).sort((a, b) => b.localeCompare(a));
+
+  let html = '';
+  sortedMonths.forEach((monthKey, idx) => {
+    const [year, month] = monthKey.split('-');
+    const label = `${parseInt(month)}月 ${year !== new Date().getFullYear().toString() ? year+'年' : ''}`;
+    const msgs = monthMap[monthKey];
+
+    // 月内ソート：①未読あり→全員既読 ②緊急→通常→連絡
+    msgs.sort((a, b) => {
+      const aUnread = totalMembers - (a.read_count || 0);
+      const bUnread = totalMembers - (b.read_count || 0);
+      const aHasUnread = aUnread > 0 ? 0 : 1;
+      const bHasUnread = bUnread > 0 ? 0 : 1;
+      if (aHasUnread !== bHasUnread) return aHasUnread - bHasUnread;
+      const ap = priorityOrder[a.priority || 'info'];
+      const bp = priorityOrder[b.priority || 'info'];
+      return ap - bp;
+    });
+
+    const isLatest = idx === 0;
+    const needAccordion = msgs.length >= 50;
+    const isOpen = isLatest || !needAccordion;
+    const maxH = isOpen ? `${msgs.length * 120}px` : '0px';
+
+    html += `<div class="month-section card">`;
+    html += `<div class="month-header" onclick="toggleMonth('month-${monthKey}')">
+      <div class="month-label">${label}（${msgs.length}件）</div>
+      ${needAccordion ? `<div class="month-toggle ${isOpen ? 'open' : 'closed'}" id="toggle-${monthKey}">▼</div>` : ''}
+    </div>`;
+    html += `<div class="month-body ${needAccordion && !isOpen ? 'collapsed' : ''}" id="month-${monthKey}" style="max-height:${maxH};">`;
+
+    msgs.forEach(msg => {
+      const readPct = totalMembers > 0 ? (msg.read_count || 0) / totalMembers * 100 : 0;
+      const unreadCount = totalMembers - (msg.read_count || 0);
+      const senderName = getMemberName(msg.sender_line_uid);
+      const timeStr = formatTime(msg.created_at);
+      const p = msg.priority || 'info';
+      const pLabel = p === 'urgent' ? '🔴 緊急' : p === 'normal' ? '🟡 通常' : '🟢 連絡';
+      html += `
+        <div class="msg-card ${p}" onclick="showDetail('${msg.id}')">
+          <span class="priority-badge priority-${p}">${pLabel}</span>
+          <div class="msg-title">${escHtml(msg.body.substring(0, 50))}${msg.body.length > 50 ? '...' : ''}</div>
+          <div class="msg-meta">${senderName}　${timeStr}</div>
+          <div class="msg-read-bar">
+            <div class="bar"><div class="bar-fill${readPct < 70 ? ' warn' : ''}" style="width:${readPct}%"></div></div>
+            <div class="read-count">${msg.read_count || 0}/${totalMembers}人既読</div>
+          </div>
+          ${unreadCount > 0 ? `<div class="unread-names">❌ 未読：詳細を確認してください</div>` : ''}
+        </div>`;
+    });
+
+    html += `</div></div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function toggleMonth(id) {
+  const body = document.getElementById(id);
+  const monthKey = id.replace('month-', '');
+  const toggle = document.getElementById('toggle-' + monthKey);
+  if (!body) return;
+  const isCollapsed = body.classList.contains('collapsed');
+  if (isCollapsed) {
+    body.classList.remove('collapsed');
+    body.style.maxHeight = body.scrollHeight + 'px';
+    if (toggle) { toggle.classList.remove('closed'); toggle.classList.add('open'); }
+  } else {
+    body.style.maxHeight = body.scrollHeight + 'px';
+    requestAnimationFrame(() => {
+      body.classList.add('collapsed');
+      if (toggle) { toggle.classList.remove('open'); toggle.classList.add('closed'); }
+    });
+  }
 }
 
 // ═══════════════════════════════════════════
 // メッセージ送信・詳細
 // ═══════════════════════════════════════════
+let selectedPriority = 'info'; // デフォルト：連絡
+
+function selectPriority(p) {
+  selectedPriority = p;
+  ['info', 'normal', 'urgent'].forEach(v => {
+    const el = document.getElementById('psel-' + v);
+    if (el) el.classList.toggle('selected', v === p);
+  });
+}
+
 async function sendMessage() {
   const body = document.getElementById('compose-body').value.trim();
   if (!body) { showToast('メッセージを入力してください'); return; }
   try {
     showToast('送信中...');
     const { error } = await supabase.from('messages').insert({
-      group_session_id: currentGroup.id, sender_line_uid: currentUser.line_uid, body: body, read_count: 0
+      group_session_id: currentGroup.id, sender_line_uid: currentUser.line_uid,
+      body: body, read_count: 0, priority: selectedPriority
     });
     if (error) throw error;
     document.getElementById('compose-body').value = '';
+    selectedPriority = 'info';
+    selectPriority('info');
     await loadMessages(); showScreen('screen-home'); showToast('送信しました！');
   } catch (e) { console.error(e); showToast('送信に失敗しました。'); }
 }
@@ -868,6 +1010,7 @@ function showScreen(id) {
     target.classList.add('active');
     if (id === 'screen-approval') loadApprovals();
     if (id === 'screen-home') loadMessages();
+    if (id === 'screen-compose') { selectedPriority = 'info'; selectPriority('info'); }
   }
 }
 function hideLoading() { document.getElementById('loading').style.display = 'none'; }
