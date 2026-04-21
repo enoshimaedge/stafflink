@@ -726,7 +726,11 @@ async function showDetail(messageId) {
   await recordRead(messageId);
   const { data: reads } = await supabase.from('read_receipts').select('*')
     .eq('message_id', messageId).order('read_at', { ascending: true });
-  const readUids = new Set((reads || []).map(r => r.line_uid));
+  // 現在グループに在籍中（approved）のメンバーのline_uidセット
+  const memberUids = new Set(members.map(m => m.line_uid));
+  // 退出済みメンバーの既読は除外
+  const validReads = (reads || []).filter(r => memberUids.has(r.line_uid));
+  const readUids = new Set(validReads.map(r => r.line_uid));
   const totalMembers = members.length;
   const readCount = readUids.size;
   const unreadMembers = members.filter(m => !readUids.has(m.line_uid));
@@ -737,10 +741,11 @@ async function showDetail(messageId) {
   document.getElementById('detail-unread-count').textContent = totalMembers - readCount;
   document.getElementById('detail-total-count').textContent = totalMembers;
   const readListEl = document.getElementById('detail-read-list');
-  if (reads && reads.length > 0) {
-    readListEl.innerHTML = reads.map(r => {
+  if (validReads.length > 0) {
+    readListEl.innerHTML = validReads.map(r => {
       const member = members.find(m => m.line_uid === r.line_uid);
-      return `<div class="person-row"><div><div class="person-name">${escHtml(member?.display_name || '不明')}</div></div><div style="display:flex;align-items:center;gap:8px;"><div class="person-time">${formatTime(r.read_at)}</div><div class="check-yes">✅</div></div></div>`;
+      if (!member) return ''; // 退出済みは表示しない
+      return `<div class="person-row"><div><div class="person-name">${escHtml(member.display_name)}</div></div><div style="display:flex;align-items:center;gap:8px;"><div class="person-time">${formatTime(r.read_at)}</div><div class="check-yes">✅</div></div></div>`;
     }).join('');
   } else {
     readListEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-light);font-size:13px;">まだ誰も読んでいません</div>';
