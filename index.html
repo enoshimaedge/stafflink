@@ -350,6 +350,45 @@
 
 <div id="toast"></div>
 
+<!-- ══ 友達未登録ブロック画面 ══ -->
+<div class="screen" id="screen-not-friend">
+  <div class="header">
+    <div>
+      <div class="header-title">EdgeOps</div>
+      <div class="header-sub">業務連絡支援アプリ / エッジオペレーションズ</div>
+    </div>
+  </div>
+  <div class="content">
+    <div style="text-align:center; padding: 48px 0 32px;">
+      <div style="font-size:56px; margin-bottom:16px;">🔒</div>
+      <div style="font-size:18px; font-weight:700; margin-bottom:12px;">
+        友だち登録が必要です
+      </div>
+      <div style="font-size:14px; color:var(--text-light); line-height:1.8; margin-bottom:32px;">
+        EdgeOpsを利用するには、まず<br>
+        <strong style="color:var(--text);">EEE｜EdgeOps</strong> を友だち登録してください。<br>
+        <span style="font-size:12px;">Please add EEE｜EdgeOps as a friend first.</span>
+      </div>
+      <a href="https://line.me/R/ti/p/@918uwtlk"
+         target="_blank"
+         style="display:inline-flex; align-items:center; gap:8px;
+                background:var(--green); color:white;
+                padding:14px 28px; border-radius:28px;
+                font-size:15px; font-weight:700;
+                text-decoration:none;
+                box-shadow:0 4px 16px rgba(6,199,85,0.4);">
+        ➕ 友だち追加する / Add Friend
+      </a>
+      <div style="margin-top:24px;">
+        <button class="btn btn-secondary" onclick="recheckFriendship()"
+                style="max-width:260px; margin:0 auto;">
+          🔄 登録済みの場合は再確認 / Re-check
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ 画面①：起動・グループ選択 ══ -->
 <div class="screen" id="screen-start">
   <div class="header">
@@ -635,6 +674,21 @@ async function init() {
     const profile = await liff.getProfile();
     currentUser = { line_uid: profile.userId, line_name: profile.displayName, picture_url: profile.pictureUrl || '' };
 
+    // ── 友達登録チェック（LINEアプリ内のみ） ──
+    if (liff.isInClient()) {
+      try {
+        const { friendFlag } = await liff.getFriendship();
+        if (!friendFlag) {
+          hideLoading();
+          showScreen('screen-not-friend');
+          return;
+        }
+      } catch (e) {
+        console.warn('Friendship check failed:', e);
+        // チェック失敗時は通過させる（安全側に倒す）
+      }
+    }
+
     const savedMemberId = localStorage.getItem('sl_member_id');
     const savedGroupId = localStorage.getItem('sl_group_id');
 
@@ -664,6 +718,29 @@ async function restoreSession(memberId, groupId) {
       await loadHome(); showScreen('screen-home'); return;
     }
   } catch (e) { localStorage.clear(); hideLoading(); showScreen('screen-start'); }
+}
+
+// ═══════════════════════════════════════════
+// 友達登録再確認
+// ═══════════════════════════════════════════
+async function recheckFriendship() {
+  try {
+    const { friendFlag } = await liff.getFriendship();
+    if (friendFlag) {
+      showToast('友だち登録を確認しました！');
+      const savedMemberId = localStorage.getItem('sl_member_id');
+      const savedGroupId = localStorage.getItem('sl_group_id');
+      if (savedMemberId && savedGroupId) {
+        await restoreSession(savedMemberId, savedGroupId);
+      } else {
+        showScreen('screen-start');
+      }
+    } else {
+      showToast('まだ友だち登録されていません');
+    }
+  } catch (e) {
+    showToast('確認中にエラーが発生しました');
+  }
 }
 
 // ═══════════════════════════════════════════
