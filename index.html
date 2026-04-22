@@ -328,6 +328,53 @@
   .empty-icon { font-size: 48px; margin-bottom: 12px; }
   .empty-text { font-size: 15px; }
 
+  /* ── 天気バー ── */
+  .weather-bar {
+    background: linear-gradient(135deg, #04a044, #06C755);
+    color: white;
+    padding: 6px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 32px;
+  }
+  .weather-bar .weather-icon { font-size: 16px; }
+  .weather-bar .weather-temp { font-size: 15px; font-weight: 700; }
+  .weather-bar .weather-city { font-size: 11px; opacity: 0.85; }
+
+  /* ── ニューステロップ ── */
+  .news-ticker {
+    background: var(--navy);
+    color: white;
+    padding: 5px 0;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    min-height: 26px;
+  }
+  .news-ticker-label {
+    background: var(--green);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    flex-shrink: 0;
+    margin-right: 8px;
+  }
+  .news-ticker-text {
+    display: inline-block;
+    animation: ticker 40s linear infinite;
+    padding-left: 100%;
+  }
+  @keyframes ticker {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+  }
+
   #toast {
     position: fixed; bottom: 90px; left: 50%;
     transform: translateX(-50%) translateY(20px);
@@ -436,6 +483,18 @@
         <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       </div>
     </div>
+  </div>
+  <!-- 天気バー -->
+  <div class="weather-bar" id="weather-bar" style="display:none;">
+    <span class="weather-icon" id="weather-icon">🌤</span>
+    <span class="weather-temp" id="weather-temp">--℃</span>
+    <span class="weather-desc" id="weather-desc">--</span>
+    <span class="weather-city" id="weather-city" style="margin-left:auto;"></span>
+  </div>
+  <!-- ニューステロップ -->
+  <div class="news-ticker" id="news-ticker" style="display:none;">
+    <span class="news-ticker-label" id="news-ticker-label">📰 ニュース</span>
+    <span class="news-ticker-text" id="news-ticker-text"></span>
   </div>
   <div class="content" id="home-messages" style="padding-bottom: 80px;">
     <div class="empty">
@@ -554,6 +613,46 @@
       <div class="group-id-value" id="profile-group-id">---</div>
       <button class="copy-btn" onclick="copyGroupId()">コピー</button>
     </div>
+    <!-- 天気・ニュース設定 -->
+    <div class="card" style="padding:16px; margin-bottom:12px;">
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">🌤 天気表示の地域 / Weather Location</label>
+        <select class="form-input" id="profile-weather-city" style="height:44px;">
+          <option value="">-- 地域を選択 --</option>
+          <optgroup label="関東">
+            <option value="Tokyo,JP">東京</option>
+            <option value="Yokohama,JP">横浜</option>
+            <option value="Fujisawa,JP">藤沢</option>
+            <option value="Kamakura,JP">鎌倉</option>
+            <option value="Chiba,JP">千葉</option>
+            <option value="Saitama,JP">さいたま</option>
+          </optgroup>
+          <optgroup label="関西">
+            <option value="Osaka,JP">大阪</option>
+            <option value="Kyoto,JP">京都</option>
+            <option value="Kobe,JP">神戸</option>
+          </optgroup>
+          <optgroup label="その他">
+            <option value="Sapporo,JP">札幌</option>
+            <option value="Sendai,JP">仙台</option>
+            <option value="Nagoya,JP">名古屋</option>
+            <option value="Hiroshima,JP">広島</option>
+            <option value="Fukuoka,JP">福岡</option>
+            <option value="Naha,JP">那覇</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">📰 ニュース業種 / Industry News</label>
+        <select class="form-input" id="profile-industry" style="height:44px;">
+          <option value="">-- 業種を選択 --</option>
+          <option value="hotel">🏨 ホテル・旅館</option>
+          <option value="medical">🏥 病院・医療</option>
+          <option value="both">🏨🏥 両方</option>
+        </select>
+      </div>
+      <button class="btn btn-secondary" onclick="saveInfoSettings()">🌤 天気・ニュース設定を保存</button>
+    </div>
     <div class="card" style="padding:16px; margin-bottom:12px;">
       <div class="form-group" style="margin-bottom:12px;">
         <label class="form-label">グループ名を変更 / Group Name</label>
@@ -592,6 +691,13 @@ const SUPABASE_URL = 'https://fibrgvbpnelywnptvgwx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpYnJndmJwbmVseXducHR2Z3d4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1NjY1NDksImV4cCI6MjA5MjE0MjU0OX0.y-gzEBwJSFMHOwR29zlJGkzMktDPoM_A324oE4ofwaU';
 const LIFF_ID = '2009827936-jvYNcPNH';
 const POLL_INTERVAL = 5000;
+const OWM_API_KEY = 'e9f11a906a81ad4711532127e13eaca3';
+const GNEWS_API_KEY = '1a6c7c3f099f442c402ab5ae1b302710';
+const INDUSTRY_KEYWORDS = {
+  hotel: 'ホテル OR 旅館 OR 宿泊 OR 観光',
+  medical: '病院 OR 医療 OR 看護 OR クリニック',
+  both: 'ホテル OR 旅館 OR 病院 OR 医療 OR 観光'
+};
 
 // ═══════════════════════════════════════════
 // グローバル状態
@@ -748,6 +854,7 @@ async function loadHome() {
   document.getElementById('profile-name').textContent = currentUser.display_name;
   document.getElementById('profile-line-name').textContent = 'LINE: ' + (currentUser.line_name || '');
   await loadMessages();
+  loadInfoWidgets();
   startPolling();
 }
 
@@ -998,6 +1105,75 @@ async function approveMember(memberId, displayName) {
 // ═══════════════════════════════════════════
 // プロフィール
 // ═══════════════════════════════════════════
+// ── 天気・ニュース設定の保存 ──
+function saveInfoSettings() {
+  const city = document.getElementById('profile-weather-city').value;
+  const industry = document.getElementById('profile-industry').value;
+  if (city) localStorage.setItem('eo_weather_city', city);
+  if (industry) localStorage.setItem('eo_industry', industry);
+  if (city) loadWeather(city);
+  if (industry) loadNews(industry);
+  showToast('設定を保存しました');
+}
+
+// ── 天気取得 ──
+async function loadWeather(city) {
+  if (!city) return;
+  try {
+    const res = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${OWM_API_KEY}&units=metric&lang=ja`
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    const temp = Math.round(data.main.temp);
+    const desc = data.weather[0].description;
+    const cityName = data.name;
+    // 天気アイコン変換
+    const code = data.weather[0].icon;
+    const iconMap = {
+      '01d':'☀️','01n':'🌙','02d':'⛅','02n':'⛅',
+      '03d':'☁️','03n':'☁️','04d':'☁️','04n':'☁️',
+      '09d':'🌧','09n':'🌧','10d':'🌦','10n':'🌦',
+      '11d':'⛈','11n':'⛈','13d':'❄️','13n':'❄️','50d':'🌫','50n':'🌫'
+    };
+    const icon = iconMap[code] || '🌤';
+    document.getElementById('weather-icon').textContent = icon;
+    document.getElementById('weather-temp').textContent = temp + '℃';
+    document.getElementById('weather-desc').textContent = desc;
+    document.getElementById('weather-city').textContent = cityName;
+    document.getElementById('weather-bar').style.display = 'flex';
+  } catch(e) { console.error('天気取得エラー', e); }
+}
+
+// ── ニュース取得 ──
+async function loadNews(industry) {
+  if (!industry) return;
+  try {
+    const q = encodeURIComponent(INDUSTRY_KEYWORDS[industry] || 'ホテル');
+    const res = await fetch(
+      `https://gnews.io/api/v4/search?q=${q}&lang=ja&country=jp&max=5&apikey=${GNEWS_API_KEY}`
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.articles || data.articles.length === 0) return;
+    // テロップ用テキスト生成
+    const texts = data.articles.map(a => `📌 ${a.title}`).join('　　　　');
+    document.getElementById('news-ticker-text').textContent = texts + '　　　　';
+    // 業種ラベル
+    const labelMap = { hotel:'📰 ホテル・旅館', medical:'📰 病院・医療', both:'📰 業界ニュース' };
+    document.getElementById('news-ticker-label').textContent = labelMap[industry] || '📰 ニュース';
+    document.getElementById('news-ticker').style.display = 'flex';
+  } catch(e) { console.error('ニュース取得エラー', e); }
+}
+
+// ── ホーム表示時に天気・ニュースを読み込む ──
+async function loadInfoWidgets() {
+  const city = localStorage.getItem('eo_weather_city');
+  const industry = localStorage.getItem('eo_industry');
+  if (city) loadWeather(city);
+  if (industry) loadNews(industry);
+}
+
 // ── グループ名変更 ──
 async function updateGroupName() {
   const newName = document.getElementById('profile-group-name').value.trim();
@@ -1052,6 +1228,11 @@ function showProfile() {
   document.getElementById('profile-name').textContent = currentUser.display_name || '---';
   document.getElementById('profile-line-name').textContent = 'LINE: ' + (currentUser.line_name || '');
   document.getElementById('profile-group-id').textContent = currentGroup?.group_id || '---';
+  // 天気・業種設定を入力欄にセット
+  const cityEl = document.getElementById('profile-weather-city');
+  const indEl = document.getElementById('profile-industry');
+  if (cityEl) cityEl.value = localStorage.getItem('eo_weather_city') || '';
+  if (indEl) indEl.value = localStorage.getItem('eo_industry') || '';
   // グループ名を入力欄にセット
   const gnEl = document.getElementById('profile-group-name');
   if (gnEl) gnEl.value = currentGroup?.group_name || '';
