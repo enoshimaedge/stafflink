@@ -693,11 +693,7 @@ const LIFF_ID = '2009827936-jvYNcPNH';
 const POLL_INTERVAL = 5000;
 const OWM_API_KEY = 'e9f11a906a81ad4711532127e13eaca3';
 const GNEWS_API_KEY = '1a6c7c3f099f442c402ab5ae1b302710';
-const INDUSTRY_KEYWORDS = {
-  hotel: 'ホテル OR 旅館 OR 宿泊 OR 観光',
-  medical: '病院 OR 医療 OR 看護 OR クリニック',
-  both: 'ホテル OR 旅館 OR 病院 OR 医療 OR 観光'
-};
+
 
 // ═══════════════════════════════════════════
 // グローバル状態
@@ -1120,9 +1116,7 @@ function saveInfoSettings() {
 async function loadWeather(city) {
   if (!city) return;
   try {
-    const res = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${OWM_API_KEY}&units=metric&lang=ja`
-    );
+    const res = await fetch(`${WEATHER_API}?city=${encodeURIComponent(city)}`);
     if (!res.ok) return;
     const data = await res.json();
     const temp = Math.round(data.main.temp);
@@ -1149,10 +1143,7 @@ async function loadWeather(city) {
 async function loadNews(industry) {
   if (!industry) return;
   try {
-    const q = encodeURIComponent(INDUSTRY_KEYWORDS[industry] || 'ホテル');
-    const res = await fetch(
-      `https://gnews.io/api/v4/search?q=${q}&lang=ja&country=jp&max=5&apikey=${GNEWS_API_KEY}`
-    );
+    const res = await fetch(`${NEWS_API}?industry=${encodeURIComponent(industry)}`);
     if (!res.ok) return;
     const data = await res.json();
     if (!data.articles || data.articles.length === 0) return;
