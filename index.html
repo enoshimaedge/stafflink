@@ -442,6 +442,7 @@
             <option value="hotel">🏨 ホテル・旅館</option>
             <option value="clinic">🏥 病院・クリニック</option>
             <option value="care">🏠 介護施設</option>
+            <option value="attraction">🎡 集客施設</option>
           </select>
         </div>
         <button class="btn btn-primary" onclick="createGroup()">
@@ -652,6 +653,7 @@
             <option value="hotel">🏨 ホテル・旅館</option>
             <option value="clinic">🏥 病院・クリニック</option>
             <option value="care">🏠 介護施設</option>
+            <option value="attraction">🎡 集客施設</option>
           </select>
         </div>
         <button class="btn btn-secondary" onclick="updateIndustry()">業種を更新 / Update Industry</button>
@@ -1090,6 +1092,14 @@ const TEMPLATES = {
     '本日のシフト変更をお知らせします。〇〇の担当が〇〇さんに変わりました。',
     'ケアミーティングを行います。〇〇時に〇〇へお集まりください。',
   ],
+  attraction: [
+    '本日の開館・閉館時刻をお知らせします。開館〇〇時、閉館〇〇時です。担当スタッフは時間通りに配置についてください。',
+    '本日の来場者数は〇〇名を予定しています。混雑が予想されるエリアは〇〇です。誘導・案内を徹底してください。',
+    '〇〇エリアにて設備点検を実施します。〇〇時から〇〇時まで立入禁止となります。案内掲示の確認をお願いします。',
+    '本日のイベント・特別展示のスケジュールをお知らせします。〇〇時から〇〇にて〇〇を実施します。担当者は事前に準備を完了してください。',
+    '緊急時の避難誘導ルートを確認してください。本日は〇〇出口が使用できません。スタッフ全員で共有をお願いします。',
+    '落とし物・忘れ物の情報を共有します。〇〇エリアで〇〇が届いています。心当たりのあるお客様がいた場合はインフォメーションへご案内ください。',
+  ],
 };
 
 function applyTemplate(text) {
@@ -1258,7 +1268,7 @@ async function updateIndustry() {
       .update({ industry: newIndustry }).eq('id', currentGroup.id);
     if (error) throw error;
     currentGroup.industry = newIndustry;
-    const labels = { hotel: 'ホテル・旅館', clinic: '病院・クリニック', care: '介護施設' };
+    const labels = { hotel: 'ホテル・旅館', clinic: '病院・クリニック', care: '介護施設', attraction: '集客施設' };
     showToast(`業種を「${labels[newIndustry]}」に更新しました`);
   } catch (e) { console.error(e); showToast('更新に失敗しました。'); }
 }
