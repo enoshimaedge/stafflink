@@ -491,6 +491,9 @@
     <button class="btn btn-secondary" onclick="checkApproval()" style="margin-top:16px;">
       🔄 承認状況を確認する / Check Status
     </button>
+    <button class="btn" onclick="cancelRequest()" style="margin-top:12px; background:#fff; color:#e53935; border:1.5px solid #e53935;">
+      ✕ 申請を取り消す / Cancel Request
+    </button>
   </div>
 </div>
 
@@ -902,6 +905,18 @@ async function checkApproval() {
       await loadHome(); showScreen('screen-home'); showToast('参加が承認されました！');
     } else { showToast('まだ承認されていません。しばらくお待ちください。'); }
   } catch (e) { showToast('確認中にエラーが発生しました。'); }
+}
+
+async function cancelRequest() {
+  if (!currentMemberId) { showToast('申請情報が見つかりません。'); return; }
+  const confirmed = confirm('申請を取り消しますか？\nCancel your join request?');
+  if (!confirmed) return;
+  try {
+    await supabase.from('group_members').delete().eq('id', currentMemberId);
+    currentMemberId = null;
+    showToast('申請を取り消しました / Request cancelled');
+    showScreen('screen-start');
+  } catch (e) { showToast('取り消し中にエラーが発生しました。'); }
 }
 
 // ═══════════════════════════════════════════
