@@ -428,7 +428,7 @@ async function init() {
   }
 
   // 超管理者チェック（adminsテーブル）
-  const { data: adminRecord } = await supabase
+  const { data: adminRecord } = await sb
     .from('admins')
     .select('line_uid')
     .eq('line_uid', currentUser.line_uid)
@@ -493,7 +493,7 @@ async function loadStats() {
 
 // ── グループ一覧 ──
 async function loadGroups() {
-  const { data } = await supabase
+  const { data } = await sb
     .from('group_sessions')
     .select('*')
     .order('created_at', { ascending: false });
@@ -540,7 +540,7 @@ function filterGroups() {
 
 // ── メンバー一覧 ──
 async function loadMembers() {
-  const { data } = await supabase
+  const { data } = await sb
     .from('group_members')
     .select('*, group_sessions(group_id, industry)')
     .order('created_at', { ascending: false })
