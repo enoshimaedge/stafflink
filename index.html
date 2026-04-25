@@ -667,6 +667,7 @@
       <button class="btn btn-secondary" onclick="updateDisplayName()">表示名を更新 / Update Name</button>
     </div>
     <button class="btn btn-danger" onclick="leaveGroup()" style="margin-top:8px;">グループを退出する / Leave Group</button>
+    <div id="super-admin-btn" style="display:none; margin-top:12px;"><button class="btn" onclick="openAdminPanel()" style="background:#0f1e35;color:white;width:100%;">⚙️ 超管理者ダッシュボード</button></div>
     <div style="text-align:center; padding: 20px 0 8px; font-size:12px; color:var(--text-light); line-height:1.8;">
       <a href="https://enoshimaedge.jp/edgeops/terms" target="_blank"
          style="color:var(--green); text-decoration:none;">利用規約</a>
@@ -1331,9 +1332,27 @@ function showProfile() {
       avatarEl.innerHTML = '👤';
     }
   }
+  // 超管理者ボタン表示チェック
+  checkSuperAdmin();
   showScreen('screen-profile');
 }
 
+
+async function checkSuperAdmin() {
+  const SUPER_ADMIN_UID = "Uf476a68d2f6f8ccc8d539e3fd109cfa5";
+  const btn = document.getElementById("super-admin-btn");
+  if (!btn) return;
+  if (currentUser && currentUser.line_uid === SUPER_ADMIN_UID) {
+    btn.style.display = "block";
+  } else {
+    const { data } = await supabase.from("admins").select("line_uid").eq("line_uid", currentUser.line_uid).single();
+    btn.style.display = data ? "block" : "none";
+  }
+}
+
+function openAdminPanel() {
+  liff.openWindow({ url: "https://app.edgeops.jp/admin.html", external: false });
+}
 async function leaveGroup() {
   if (!confirm('グループを退出しますか？')) return;
   try {
