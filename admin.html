@@ -463,26 +463,51 @@ async function loadAllData() {
 // ── 統計 ──
 async function loadStats() {
   const [
-    { count: groupCount },
-    { count: memberCount },
-    { count: approvedCount },
+    { data: allGroups },
+    { data: allMembers },
     { count: pendingCount },
     { count: messageCount },
     { data: industryData }
   ] = await Promise.all([
-    sb.from('group_sessions').select('*', { count: 'exact', head: true }),
-    sb.from('group_members').select('*', { count: 'exact', head: true }),
-    sb.from('group_members').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+    sb.from('group_sessions').select('id'),
+    sb.from('group_members').select('line_uid, status, group_session_id'),
     sb.from('group_members').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
     sb.from('messages').select('*', { count: 'exact', head: true }),
     sb.from('group_sessions').select('industry')
   ]);
 
-  document.getElementById('stat-groups').innerHTML = `${groupCount || 0}<span class="stat-unit">件</span>`;
-  document.getElementById('stat-members').innerHTML = `${memberCount || 0}<span class="stat-unit">人</span>`;
-  document.getElementById('stat-approved').innerHTML = `${approvedCount || 0}<span class="stat-unit">人</span>`;
-  document.getElementById('stat-pending').innerHTML = `${pendingCount || 0}<span class="stat-unit">人</span>`;
-  document.getElementById('stat-messages').innerHTML = `${messageCount || 0}<span class="stat-unit">件</span>`;
+  // アクティブグループ（承認済みメンバーが1人以上）
+  const approvedMembers = (allMembers || []).filter(m => m.status === 'approved');
+  const activeGroupIds = new Set(approvedMembers.map(m => m.group_session_id));
+  const totalGroups = (allGroups || []).length;
+  const activeGroups = activeGroupIds.size;
+
+  // ②総メンバー：ユニークなline_uid（重複排除・グループ跨ぎ）
+  const uniqueUids = new Set((allMembers || []).map(m => m.line_uid));
+  // ③承認済み：現在承認中のユニークline_uid
+  const uniqueApprovedUids = new Set(approvedMembers.map(m => m.line_uid));
+
+  const note = (t) => `<span style="font-size:10px;color:#9aa5b8;display:block;font-weight:400;margin-top:2px;">${t}</span>`;
+
+  document.getElementById('stat-groups').innerHTML =
+    `${activeGroups}<span class="stat-unit">件</span>` +
+    note(`アクティブ数 ／ 作成数: ${totalGroups}件`);
+
+  document.getElementById('stat-members').innerHTML =
+    `${uniqueUids.size}<span class="stat-unit">人</span>` +
+    note(`ユニーク人数（グループ重複なし）`);
+
+  document.getElementById('stat-approved').innerHTML =
+    `${uniqueApprovedUids.size}<span class="stat-unit">人</span>` +
+    note(`現在いずれかのグループに承認中`);
+
+  document.getElementById('stat-pending').innerHTML =
+    `${pendingCount || 0}<span class="stat-unit">人</span>` +
+    note(`承認待ちの申請数`);
+
+  document.getElementById('stat-messages').innerHTML =
+    `${messageCount || 0}<span class="stat-unit">件</span>` +
+    note(`全グループの送信メッセージ合計`);
 
   // 業種内訳
   const counts = { hotel: 0, clinic: 0, care: 0, attraction: 0 };
@@ -501,12 +526,23 @@ async function loadStats() {
 
 // ── グループ一覧 ──
 async function loadGroups() {
-  const { data } = await sb
-    .from('group_sessions')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const [{ data: groups }, { data: members }] = await Promise.all([
+    sb.from('group_sessions').select('*').order('created_at', { ascending: false }),
+    sb.from('group_members').select('group_session_id, status')
+  ]);
 
-  allGroups = data || [];
+  // 各グループのアクティブメンバー数を計算
+  const memberMap = {};
+  (members || []).forEach(m => {
+    if (!memberMap[m.group_session_id]) memberMap[m.group_session_id] = 0;
+    if (m.status === 'approved') memberMap[m.group_session_id]++;
+  });
+
+  // アクティブグループ優先、全員離脱グループを末尾に
+  const active = (groups || []).filter(g => (memberMap[g.id] || 0) > 0);
+  const inactive = (groups || []).filter(g => (memberMap[g.id] || 0) === 0);
+  allGroups = [...active, ...inactive];
+  allGroups._memberMap = memberMap;
   renderGroups(allGroups);
 }
 
@@ -516,20 +552,25 @@ function renderGroups(groups) {
     return;
   }
 
+  const memberMap = allGroups._memberMap || {};
   const html = groups.map(g => {
     const industry = g.industry || 'hotel';
     const tagClass = industry === 'hotel' ? '' : industry;
     const label = INDUSTRY_LABELS[industry] || industry;
-    const date = new Date(g.created_at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
+    const dt = new Date(g.created_at);
+    const dateStr = dt.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' }) +
+      ' ' + dt.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    const activeCount = memberMap[g.id] || 0;
+    const isInactive = activeCount === 0;
     return `
-      <div class="group-item">
+      <div class="group-item" style="${isInactive ? 'opacity:0.45;background:#f5f5f5;' : ''}">
         <div class="group-item-header">
-          <div class="group-id">${g.group_id}</div>
+          <div class="group-id">${g.group_id}${isInactive ? ' <span style="font-size:10px;color:#9aa5b8;">(全員退出)</span>' : ''}</div>
           <div class="industry-tag ${tagClass}">${label}</div>
         </div>
         <div class="group-item-info">
-          <span>📅 ${date}作成</span>
-          <span>🔑 ${g.group_id}</span>
+          <span>📅 ${dateStr}作成</span>
+          <span>👥 承認中: ${activeCount}人</span>
         </div>
       </div>
     `;
