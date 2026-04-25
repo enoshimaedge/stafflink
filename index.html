@@ -1352,15 +1352,19 @@ async function loadReportData(tab) {
   content.innerHTML = '<div class="spinner" style="margin:40px auto;"></div>';
 
   const now = new Date();
+  // JSTオフセット（+9時間）を考慮
+  const jstOffset = 9 * 60 * 60 * 1000;
+  const nowJST = new Date(now.getTime() + jstOffset);
   let year, month;
   if (tab === 'last') {
-    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    year = d.getFullYear(); month = d.getMonth(); // 0-indexed
+    const d = new Date(Date.UTC(nowJST.getUTCFullYear(), nowJST.getUTCMonth() - 1, 1));
+    year = d.getUTCFullYear(); month = d.getUTCMonth();
   } else {
-    year = now.getFullYear(); month = now.getMonth();
+    year = nowJST.getUTCFullYear(); month = nowJST.getUTCMonth();
   }
-  const start = new Date(year, month, 1).toISOString();
-  const end   = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+  // JSTの月初・月末をUTCに変換してクエリ
+  const start = new Date(Date.UTC(year, month, 1) - jstOffset).toISOString();
+  const end   = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59) - jstOffset).toISOString();
   const label = `${year}年${month + 1}月`;
   periodEl.textContent = label;
 
@@ -1368,7 +1372,7 @@ async function loadReportData(tab) {
     // メッセージ取得
     const { data: msgs } = await supabase
       .from('messages')
-      .select('id, created_at, sender_uid')
+      .select('id, created_at, sender_line_uid, read_count')
       .eq('group_session_id', currentGroup.id)
       .gte('created_at', start).lte('created_at', end);
 
@@ -1378,7 +1382,7 @@ async function loadReportData(tab) {
     if (msgIds.length > 0) {
       const { data } = await supabase
         .from('read_receipts')
-        .select('message_id, member_id, read_at')
+        .select('message_id, line_uid, read_at')
         .in('message_id', msgIds);
       receipts = data || [];
     }
@@ -1386,12 +1390,12 @@ async function loadReportData(tab) {
     // メンバー取得
     const { data: members } = await supabase
       .from('group_members')
-      .select('id, display_name')
+      .select('id, display_name, line_uid')
       .eq('group_session_id', currentGroup.id)
       .eq('status', 'approved');
     const memberCount = (members || []).length;
     const memberMap = {};
-    (members || []).forEach(m => { memberMap[m.id] = m.display_name; });
+    (members || []).forEach(m => { memberMap[m.line_uid] = m.display_name; });
 
     // 統計計算
     const totalMsgs = (msgs || []).length;
@@ -1410,15 +1414,15 @@ async function loadReportData(tab) {
     receipts.forEach(r => {
       const msg = (msgs || []).find(m => m.id === r.message_id);
       if (!msg) return;
-      const diff = (new Date(r.read_at) - new Date(msg.created_at)) / 60000; // 分
-      if (!memberReadTimes[r.member_id]) { memberReadTimes[r.member_id] = 0; memberReadCounts[r.member_id] = 0; }
-      memberReadTimes[r.member_id] += diff;
-      memberReadCounts[r.member_id]++;
+      const diff = (new Date(r.read_at) - new Date(msg.created_at)) / 60000;
+      if (!memberReadTimes[r.line_uid]) { memberReadTimes[r.line_uid] = 0; memberReadCounts[r.line_uid] = 0; }
+      memberReadTimes[r.line_uid] += diff;
+      memberReadCounts[r.line_uid]++;
     });
     let fastestName = '—'; let fastestMin = Infinity;
-    Object.keys(memberReadTimes).forEach(mid => {
-      const avg = memberReadTimes[mid] / memberReadCounts[mid];
-      if (avg < fastestMin) { fastestMin = avg; fastestName = memberMap[mid] || '—'; }
+    Object.keys(memberReadTimes).forEach(uid => {
+      const avg = memberReadTimes[uid] / memberReadCounts[uid];
+      if (avg < fastestMin) { fastestMin = avg; fastestName = memberMap[uid] || '—'; }
     });
     const fastestStr = fastestMin < Infinity
       ? `${fastestName}（平均${fastestMin < 60 ? Math.round(fastestMin) + '分' : Math.round(fastestMin/60) + '時間'}）`
@@ -1426,13 +1430,13 @@ async function loadReportData(tab) {
 
     // 要注意スタッフ（既読率50%未満）
     const memberRateMap = {};
-    (members || []).forEach(m => { memberRateMap[m.id] = { name: m.display_name, read: 0, total: 0 }; });
+    (members || []).forEach(m => { memberRateMap[m.line_uid] = { name: m.display_name, read: 0, total: 0 }; });
     (msgs || []).forEach(msg => {
       const msgReceipts = receipts.filter(r => r.message_id === msg.id);
       (members || []).forEach(m => {
-        if (m.id === msg.sender_uid) return; // 送信者は除く
-        memberRateMap[m.id].total++;
-        if (msgReceipts.find(r => r.member_id === m.id)) memberRateMap[m.id].read++;
+        if (m.line_uid === msg.sender_line_uid) return; // 送信者は除く
+        memberRateMap[m.line_uid].total++;
+        if (msgReceipts.find(r => r.line_uid === m.line_uid)) memberRateMap[m.line_uid].read++;
       });
     });
     const caution = Object.values(memberRateMap)
