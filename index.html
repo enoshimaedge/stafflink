@@ -445,6 +445,17 @@
             <option value="attraction">🎡 集客施設</option>
           </select>
         </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">地域を選択（任意） / Region</label>
+          <select class="form-input" id="input-region">
+            <option value="">-- 地域を選んでください --</option>
+            <option value="fujisawa">📍 藤沢</option>
+            <option value="kamakura">📍 鎌倉</option>
+            <option value="yokohama">📍 横浜</option>
+            <option value="tokyo">📍 東京</option>
+            <option value="other">📍 その他</option>
+          </select>
+        </div>
         <button class="btn btn-primary" onclick="createGroup()">
           ✨ 新しいグループを作る / Create Group
         </button>
@@ -505,7 +516,23 @@
       <div class="header-title">EdgeOps</div>
       <div class="header-sub" id="home-group-id-display"></div>
     </div>
-    <div style="display:flex; gap:8px;">
+    <div style="display:flex; gap:8px; align-items:center;">
+      <!-- エリア混雑度ボタン（藤沢グループのみ表示） -->
+      <div id="vacan-btn" style="display:none;">
+        <button onclick="openVacanMap()" title="エリア混雑度" style="
+          display:flex; align-items:center; gap:4px;
+          background:rgba(255,255,255,0.18); border:1.5px solid rgba(255,255,255,0.6);
+          border-radius:20px; padding:5px 10px;
+          color:white; font-size:11px; font-weight:700;
+          cursor:pointer; font-family:inherit;
+          white-space:nowrap; transition:background 0.15s;
+        " onmouseenter="this.style.background='rgba(255,255,255,0.3)'" onmouseleave="this.style.background='rgba(255,255,255,0.18)'">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="10" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+          </svg>
+          混雑度
+        </button>
+      </div>
       <!-- 承認アイコン -->
       <div class="header-icon-btn" id="approval-btn" onclick="showScreen('screen-approval')" title="参加申請">
         <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
@@ -845,8 +872,10 @@ async function createGroup() {
     showToast('グループを作成中...');
     const groupId = generateGroupId();
     const expiresAt = new Date(); expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    const regionVal = document.getElementById('input-region').value;
     const insertData = { group_id: groupId, expires_at: expiresAt.toISOString(), max_members: 50, industry: industryVal };
     if (groupNameVal) insertData.group_name = groupNameVal;
+    if (regionVal) insertData.region = regionVal;
     const { data: group, error: groupError } = await supabase
       .from('group_sessions').insert(insertData).select().single();
     if (groupError) throw groupError;
@@ -934,8 +963,28 @@ async function loadHome() {
   document.getElementById('profile-group-id').textContent = currentGroup.group_id;
   document.getElementById('profile-name').textContent = currentUser.display_name;
   document.getElementById('profile-line-name').textContent = 'LINE: ' + (currentUser.line_name || '');
+
+  // 地域が「藤沢」の場合、エリア混雑度ボタンを表示
+  const vacanBtn = document.getElementById('vacan-btn');
+  if (currentGroup.region === 'fujisawa') {
+    vacanBtn.style.display = 'flex';
+    vacanBtn.style.alignItems = 'center';
+  } else {
+    vacanBtn.style.display = 'none';
+  }
+
   await loadMessages();
   startPolling();
+}
+
+// VACAN Maps（江の島周辺混雑度）を開く
+function openVacanMap() {
+  const url = 'https://vacan.com/map/35.299694,139.480194,13?isOpendata=false&areaName=enoshima';
+  if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
+    liff.openWindow({ url: url, external: true });
+  } else {
+    window.open(url, '_blank');
+  }
 }
 
 function startPolling() {
