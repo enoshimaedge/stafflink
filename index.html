@@ -359,6 +359,102 @@
     white-space: nowrap; z-index: 999;
   }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ── 引き継ぎノート ── */
+  .handover-badge-bar {
+    background: #fff3e0;
+    border: 1.5px solid #ffb74d;
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+  }
+  .handover-badge-bar:active { opacity: 0.8; }
+  .handover-badge-count {
+    background: #ff6f00;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 12px;
+    padding: 2px 10px;
+    min-width: 28px;
+    text-align: center;
+  }
+
+  .handover-card {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+    border-left: 4px solid #ff6f00;
+    background: #fffdf7;
+  }
+  .handover-card.priority-action { border-left-color: #e53935; background: #fffafa; }
+  .handover-card.priority-check  { border-left-color: #f9a825; background: #fffef5; }
+  .handover-card.priority-done   { border-left-color: #43a047; background: #f1f8f4; }
+  .handover-card:last-child { border-bottom: none; }
+  .handover-card:active { background: #f8f9fc; }
+
+  .handover-priority-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 700; padding: 2px 8px;
+    border-radius: 10px; margin-bottom: 6px;
+  }
+  .hw-action { background: #ffeaea; color: #c62828; border: 1px solid #e53935; }
+  .hw-check  { background: #fffde7; color: #f57f17; border: 1px solid #f9a825; }
+  .hw-done   { background: #f1f8f4; color: #2e7d32; border: 1px solid #66bb6a; }
+
+  .handover-confirm-names {
+    font-size: 11px; color: var(--green); margin-top: 6px;
+    display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  }
+  .handover-unconfirmed {
+    font-size: 11px; color: var(--red); margin-top: 4px;
+  }
+
+  .hw-confirm-btn {
+    width: 100%; padding: 14px; border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 700; font-family: inherit;
+    cursor: pointer; transition: opacity 0.15s; margin-bottom: 10px;
+  }
+  .hw-confirm-btn:active { opacity: 0.8; }
+  .hw-btn-takeover { background: #1565c0; color: white; }
+  .hw-btn-done     { background: var(--green); color: white; }
+  .hw-confirmed-banner {
+    background: #e8f5e9; border: 1.5px solid #66bb6a; border-radius: 12px;
+    padding: 12px 16px; text-align: center; font-size: 14px;
+    font-weight: 700; color: #2e7d32; margin-bottom: 10px;
+  }
+
+  /* 作成画面：引き継ぎトグル */
+  .compose-type-toggle {
+    display: flex; gap: 0; margin-bottom: 16px;
+    border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden;
+  }
+  .compose-type-btn {
+    flex: 1; padding: 10px 4px; border: none; background: white;
+    font-size: 13px; font-weight: 700; font-family: inherit;
+    cursor: pointer; transition: background 0.15s, color 0.15s;
+    color: var(--text-light);
+  }
+  .compose-type-btn.active {
+    background: var(--navy); color: white;
+  }
+  .compose-type-btn:not(:last-child) { border-right: 1.5px solid var(--border); }
+
+  /* ホームフィルタートグル */
+  .home-filter-toggle {
+    display: flex; gap: 8px; margin-bottom: 12px; align-items: center;
+  }
+  .filter-chip {
+    padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;
+    border: 1.5px solid var(--border); background: white; cursor: pointer;
+    font-family: inherit; color: var(--text-mid); transition: all 0.15s;
+  }
+  .filter-chip.active { background: var(--navy); border-color: var(--navy); color: white; }
 </style>
 </head>
 <body>
@@ -545,11 +641,22 @@
       </div>
     </div>
   </div>
-  <div class="content" id="home-messages" style="padding-bottom: 120px;">
-    <div class="empty">
-      <div class="empty-icon">📭</div>
-      <div class="empty-text">まだメッセージがありません</div>
+  <div class="content" style="padding-bottom: 120px;">
+    <!-- 引き継ぎ未確認バッジ -->
+    <div id="handover-badge-bar" style="display:none;" class="handover-badge-bar" onclick="showScreen('screen-handover')">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:16px;">📋</span>
+        <span style="font-size:13px; font-weight:700; color:#e65100;">未確認の引き継ぎがあります</span>
+      </div>
+      <span class="handover-badge-count" id="handover-badge-count">0</span>
     </div>
+    <!-- フィルター -->
+    <div class="home-filter-toggle">
+      <button class="filter-chip active" id="filter-chip-msg" onclick="setHomeFilter('msg')">💬 連絡</button>
+      <button class="filter-chip" id="filter-chip-handover" onclick="setHomeFilter('handover')">📋 引き継ぎ</button>
+      <button class="filter-chip" id="filter-chip-all" onclick="setHomeFilter('all')">すべて</button>
+    </div>
+    <div id="home-messages"></div>
   </div>
   <!-- 新しい連絡ボタン -->
   <button class="new-msg-btn" onclick="showScreen('screen-compose')">
@@ -565,7 +672,13 @@
     <div><div class="header-title">新しい連絡</div><div class="header-sub">New Message</div></div>
   </div>
   <div class="content">
-    <div class="form-group">
+    <!-- タイプ切替 -->
+    <div class="compose-type-toggle" style="margin-bottom:16px;">
+      <button class="compose-type-btn active" id="ctype-msg" onclick="selectComposeType('msg')">💬 通常メッセージ</button>
+      <button class="compose-type-btn" id="ctype-handover" onclick="selectComposeType('handover')">📋 引き継ぎノート</button>
+    </div>
+    <!-- 通常メッセージ優先度 -->
+    <div id="section-msg-priority" class="form-group">
       <label class="form-label">優先度 / Priority</label>
       <div style="display:flex; gap:8px; margin-bottom:4px;">
         <label style="flex:1; cursor:pointer;">
@@ -582,15 +695,30 @@
         </label>
       </div>
     </div>
+    <!-- 引き継ぎ優先度 -->
+    <div id="section-handover-priority" style="display:none;" class="form-group">
+      <label class="form-label">引き継ぎ種別 / Handover Type</label>
+      <div style="display:flex; gap:8px; margin-bottom:4px;">
+        <label style="flex:1; cursor:pointer;">
+          <div class="priority-sel-btn hw-check" id="hwsel-check" onclick="selectHandoverPriority('check')" style="opacity:1; transform:scale(1.04);">🟡 確認事項</div>
+        </label>
+        <label style="flex:1; cursor:pointer;">
+          <div class="priority-sel-btn hw-action" id="hwsel-action" onclick="selectHandoverPriority('action')" style="opacity:0.45;">🔴 要対応</div>
+        </label>
+        <label style="flex:1; cursor:pointer;">
+          <div class="priority-sel-btn hw-done" id="hwsel-done" onclick="selectHandoverPriority('done')" style="opacity:0.45;">🟢 完了済み</div>
+        </label>
+      </div>
+    </div>
     <div id="template-section" style="display:none; margin-bottom:16px;">
       <div style="font-size:12px; font-weight:700; color:var(--text-mid); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">📋 テンプレートから選ぶ / Templates</div>
       <div id="template-list" style="display:flex; flex-direction:column; gap:6px;"></div>
     </div>
     <div class="form-group">
-      <label class="form-label">メッセージ内容 / Message</label>
+      <label class="form-label" id="compose-body-label">メッセージ内容 / Message</label>
       <textarea class="form-textarea" id="compose-body" placeholder="連絡内容を入力してください..."></textarea>
     </div>
-    <button class="btn btn-primary" onclick="sendMessage()">📢 送信する / Send</button>
+    <button class="btn btn-primary" id="compose-send-btn" onclick="sendMessage()">📢 送信する / Send</button>
   </div>
 </div>
 
@@ -629,6 +757,48 @@
     </div>
     <div id="detail-delete-wrap" style="display:none; margin-top:12px;">
       <button class="delete-msg-btn" onclick="deleteMessage()">🗑️ このメッセージを削除する / Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 引き継ぎ一覧画面 ══ -->
+<div class="screen" id="screen-handover">
+  <div class="header">
+    <div class="back-btn" onclick="showScreen('screen-home')">‹</div>
+    <div><div class="header-title">引き継ぎノート</div><div class="header-sub">Handover Notes</div></div>
+  </div>
+  <div class="content" style="padding-bottom:80px;">
+    <div id="handover-list-container">
+      <div class="empty"><div class="empty-icon">📋</div><div class="empty-text">引き継ぎノートはまだありません</div></div>
+    </div>
+  </div>
+  <button class="new-msg-btn" onclick="showScreen('screen-compose'); selectComposeType('handover')">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    新しい引き継ぎ
+  </button>
+</div>
+
+<!-- ══ 引き継ぎ詳細画面 ══ -->
+<div class="screen" id="screen-handover-detail">
+  <div class="header">
+    <div class="back-btn" onclick="showScreen('screen-handover')">‹</div>
+    <div class="header-title" id="hw-detail-title">引き継ぎ詳細</div>
+  </div>
+  <div class="content">
+    <div class="card" style="padding:16px; margin-bottom:12px;">
+      <div style="font-size:12px; color:var(--text-light); margin-bottom:8px;" id="hw-detail-meta"></div>
+      <div style="font-size:15px; line-height:1.7;" id="hw-detail-body"></div>
+    </div>
+    <!-- 確認ボタンエリア -->
+    <div id="hw-confirm-area"></div>
+    <!-- 確認者リスト -->
+    <div class="card" style="margin-top:12px;">
+      <div style="padding:12px 16px; font-size:13px; font-weight:700; color:var(--text-mid); border-bottom:1px solid var(--border);">✅ 確認済みメンバー</div>
+      <div id="hw-confirmed-list"></div>
+    </div>
+    <div class="card" style="margin-top:12px;">
+      <div style="padding:12px 16px; font-size:13px; font-weight:700; color:var(--red); border-bottom:1px solid var(--border);">❌ 未確認メンバー</div>
+      <div id="hw-unconfirmed-list"></div>
     </div>
   </div>
 </div>
@@ -757,6 +927,9 @@ let isCreator = false;
 let messages = [];
 let members = [];
 let pollTimer = null;
+let handoverNotes = [];
+let currentHandoverId = null;
+let homeFilter = 'msg'; // 'msg' | 'handover' | 'all'
 
 // ═══════════════════════════════════════════
 // 初期化
@@ -1042,12 +1215,33 @@ async function loadMessages() {
     const badge = document.getElementById('approval-badge');
     if (count > 0) { badge.textContent = count; badge.style.display = ''; }
     else { badge.style.display = 'none'; }
+    // 引き継ぎ未確認バッジ更新
+    await updateHandoverBadge();
   } catch (e) { console.error(e); }
+}
+
+function setHomeFilter(f) {
+  homeFilter = f;
+  ['msg','handover','all'].forEach(k => {
+    const el = document.getElementById('filter-chip-' + k);
+    if (el) el.classList.toggle('active', k === f);
+  });
+  renderMessages();
 }
 
 function renderMessages() {
   const container = document.getElementById('home-messages');
-  if (messages.length === 0) {
+
+  // handover専用フィルター
+  if (homeFilter === 'handover') {
+    renderHandoverInline(container);
+    return;
+  }
+
+  // msg または all
+  const showHandover = homeFilter === 'all';
+
+  if (messages.length === 0 && (!showHandover || handoverNotes.length === 0)) {
     container.innerHTML = `<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">まだメッセージがありません / No messages yet<br>下の「＋新しい連絡」から送信してください</div></div>`;
     return;
   }
@@ -1067,6 +1261,20 @@ function renderMessages() {
   const sortedMonths = Object.keys(monthMap).sort((a, b) => b.localeCompare(a));
 
   let html = '';
+
+  // all表示の場合は引き継ぎを最上部に表示
+  if (showHandover && handoverNotes.length > 0) {
+    html += `<div class="card" style="margin-bottom:12px;">`;
+    html += `<div style="padding:10px 16px; font-size:12px; font-weight:700; color:#e65100; border-bottom:1px solid var(--border);">📋 引き継ぎノート</div>`;
+    handoverNotes.slice(0, 5).forEach(hw => {
+      html += renderHandoverCardHtml(hw);
+    });
+    if (handoverNotes.length > 5) {
+      html += `<div style="padding:10px 16px; text-align:center; font-size:13px; color:var(--green); cursor:pointer;" onclick="showScreen('screen-handover')">すべて見る（${handoverNotes.length}件）</div>`;
+    }
+    html += `</div>`;
+  }
+
   sortedMonths.forEach((monthKey, idx) => {
     const [year, month] = monthKey.split('-');
     const label = `${parseInt(month)}月 ${year !== new Date().getFullYear().toString() ? year+'年' : ''}`;
@@ -1188,7 +1396,7 @@ function renderTemplates() {
   const industry = currentGroup?.industry;
   const wrap = document.getElementById('template-section');
   if (!wrap) return;
-  if (!industry || !TEMPLATES[industry]) {
+  if (!industry || !TEMPLATES[industry] || selectedComposeType === 'handover') {
     wrap.style.display = 'none';
     return;
   }
@@ -1203,6 +1411,40 @@ function renderTemplates() {
 // メッセージ送信・詳細
 // ═══════════════════════════════════════════
 let selectedPriority = 'info'; // デフォルト：連絡
+let selectedComposeType = 'msg'; // 'msg' | 'handover'
+let selectedHandoverPriority = 'check'; // 'action' | 'check' | 'done'
+
+function selectComposeType(type) {
+  selectedComposeType = type;
+  applyComposeType(type);
+}
+
+function applyComposeType(type) {
+  const isMsgActive = type === 'msg';
+  document.getElementById('ctype-msg').classList.toggle('active', isMsgActive);
+  document.getElementById('ctype-handover').classList.toggle('active', !isMsgActive);
+  document.getElementById('section-msg-priority').style.display = isMsgActive ? '' : 'none';
+  document.getElementById('section-handover-priority').style.display = isMsgActive ? 'none' : '';
+  document.getElementById('template-section').style.display = (!isMsgActive || !currentGroup?.industry) ? 'none' : '';
+  const label = document.getElementById('compose-body-label');
+  if (label) label.textContent = isMsgActive ? 'メッセージ内容 / Message' : '引き継ぎ内容 / Handover Content';
+  const placeholder = document.getElementById('compose-body');
+  if (placeholder) placeholder.placeholder = isMsgActive ? '連絡内容を入力してください...' : '引き継ぎ事項を入力してください（例：〇〇様のご対応をお願いします）...';
+  const sendBtn = document.getElementById('compose-send-btn');
+  if (sendBtn) sendBtn.textContent = isMsgActive ? '📢 送信する / Send' : '📋 引き継ぎを投稿する';
+}
+
+function selectHandoverPriority(p) {
+  selectedHandoverPriority = p;
+  applyHandoverPriorityUI(p);
+}
+
+function applyHandoverPriorityUI(p) {
+  ['check','action','done'].forEach(v => {
+    const el = document.getElementById('hwsel-' + v);
+    if (el) { el.style.opacity = v === p ? '1' : '0.45'; el.style.transform = v === p ? 'scale(1.04)' : ''; }
+  });
+}
 
 function selectPriority(p) {
   selectedPriority = p;
@@ -1214,7 +1456,29 @@ function selectPriority(p) {
 
 async function sendMessage() {
   const body = document.getElementById('compose-body').value.trim();
-  if (!body) { showToast('メッセージを入力してください'); return; }
+  if (!body) { showToast('内容を入力してください'); return; }
+
+  if (selectedComposeType === 'handover') {
+    // 引き継ぎノート投稿
+    try {
+      showToast('投稿中...');
+      const { error } = await supabase.from('handover_notes').insert({
+        group_session_id: currentGroup.id,
+        sender_line_uid: currentUser.line_uid,
+        sender_name: currentUser.display_name,
+        content: body,
+        priority: selectedHandoverPriority
+      });
+      if (error) throw error;
+      document.getElementById('compose-body').value = '';
+      selectedComposeType = 'msg';
+      await loadMessages();
+      showScreen('screen-home');
+      showToast('引き継ぎを投稿しました！');
+    } catch (e) { console.error(e); showToast('投稿に失敗しました。'); }
+    return;
+  }
+
   try {
     showToast('送信中...');
     const { error } = await supabase.from('messages').insert({
@@ -1227,6 +1491,185 @@ async function sendMessage() {
     selectPriority('info');
     await loadMessages(); showScreen('screen-home'); showToast('送信しました！');
   } catch (e) { console.error(e); showToast('送信に失敗しました。'); }
+}
+
+// ═══════════════════════════════════════════
+// 引き継ぎノート機能
+// ═══════════════════════════════════════════
+async function updateHandoverBadge() {
+  try {
+    // 72時間以内の引き継ぎを取得
+    const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
+    const { data: notes } = await supabase.from('handover_notes').select('id')
+      .eq('group_session_id', currentGroup.id).gte('created_at', cutoff);
+    if (!notes || notes.length === 0) {
+      document.getElementById('handover-badge-bar').style.display = 'none';
+      return;
+    }
+    const noteIds = notes.map(n => n.id);
+    const { data: myConfirms } = await supabase.from('handover_confirmations').select('handover_id')
+      .in('handover_id', noteIds).eq('line_uid', currentUser.line_uid);
+    const confirmedIds = new Set((myConfirms || []).map(c => c.handover_id));
+    const unconfirmedCount = noteIds.filter(id => !confirmedIds.has(id)).length;
+    const bar = document.getElementById('handover-badge-bar');
+    const countEl = document.getElementById('handover-badge-count');
+    if (unconfirmedCount > 0) {
+      bar.style.display = 'flex';
+      countEl.textContent = unconfirmedCount;
+    } else {
+      bar.style.display = 'none';
+    }
+  } catch (e) { console.error(e); }
+}
+
+async function loadHandoverNotes() {
+  try {
+    const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
+    const { data: notes } = await supabase.from('handover_notes').select('*')
+      .eq('group_session_id', currentGroup.id).gte('created_at', cutoff)
+      .order('created_at', { ascending: false });
+    handoverNotes = notes || [];
+
+    // 全引き継ぎの確認情報を取得
+    let confirmMap = {};
+    if (handoverNotes.length > 0) {
+      const ids = handoverNotes.map(n => n.id);
+      const { data: confs } = await supabase.from('handover_confirmations').select('*').in('handover_id', ids);
+      (confs || []).forEach(c => {
+        if (!confirmMap[c.handover_id]) confirmMap[c.handover_id] = [];
+        confirmMap[c.handover_id].push(c);
+      });
+    }
+
+    const container = document.getElementById('handover-list-container');
+    if (handoverNotes.length === 0) {
+      container.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">引き継ぎノートはまだありません<br>右下の「＋」から追加できます</div></div>';
+      return;
+    }
+
+    // 優先度順（要対応→確認事項→完了済み）、未確認優先、新しい順
+    const priorityOrder = { action: 0, check: 1, done: 2 };
+    const myUid = currentUser.line_uid;
+    handoverNotes.sort((a, b) => {
+      const aConf = (confirmMap[a.id] || []).some(c => c.line_uid === myUid);
+      const bConf = (confirmMap[b.id] || []).some(c => c.line_uid === myUid);
+      if (aConf !== bConf) return aConf ? 1 : -1;
+      const ap = priorityOrder[a.priority] ?? 1;
+      const bp = priorityOrder[b.priority] ?? 1;
+      if (ap !== bp) return ap - bp;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+    let html = '<div class="card">';
+    handoverNotes.forEach(hw => {
+      const confs = confirmMap[hw.id] || [];
+      const myConf = confs.find(c => c.line_uid === myUid);
+      html += renderHandoverCardHtml(hw, confs, myConf);
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  } catch(e) { console.error(e); }
+}
+
+function renderHandoverCardHtml(hw, confs, myConf) {
+  const pLabels = { action: '🔴 要対応', check: '🟡 確認事項', done: '🟢 完了済み' };
+  const pClass  = { action: 'hw-action', check: 'hw-check', done: 'hw-done' };
+  const p = hw.priority || 'check';
+  const confirmNames = (confs || []).map(c => c.display_name).join('・');
+  const confirmedByMe = myConf ? true : false;
+  return `
+    <div class="handover-card priority-${p}" onclick="showHandoverDetail('${hw.id}')">
+      <span class="handover-priority-badge ${pClass[p]}">${pLabels[p]}</span>
+      <div class="msg-title">${escHtml((hw.content||'').substring(0,40))}${ (hw.content||'').length > 40 ? '…' : ''}</div>
+      <div class="msg-meta">${escHtml(hw.sender_name)}　${formatTime(hw.created_at)}</div>
+      ${confirmedByMe
+        ? `<div class="handover-confirm-names">✅ 確認済み${confirmNames ? '：' + escHtml(confirmNames) : ''}</div>`
+        : `<div class="handover-unconfirmed">⚠️ 未確認${confirmNames ? '（確認済：' + escHtml(confirmNames) + '）' : ''}</div>`
+      }
+    </div>`;
+}
+
+function renderHandoverInline(container) {
+  if (handoverNotes.length === 0) {
+    container.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">引き継ぎノートはまだありません</div></div>';
+    return;
+  }
+  let html = '<div class="card">';
+  handoverNotes.forEach(hw => { html += renderHandoverCardHtml(hw); });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+async function showHandoverDetail(handoverId) {
+  try {
+    const hw = handoverNotes.find(n => n.id === handoverId)
+      || (await supabase.from('handover_notes').select('*').eq('id', handoverId).single()).data;
+    if (!hw) return;
+    currentHandoverId = handoverId;
+
+    const pLabels = { action: '🔴 要対応', check: '🟡 確認事項', done: '🟢 完了済み' };
+    document.getElementById('hw-detail-title').textContent = pLabels[hw.priority] || '引き継ぎ詳細';
+    document.getElementById('hw-detail-meta').textContent = `${escHtml(hw.sender_name)}　${formatTime(hw.created_at)}`;
+    document.getElementById('hw-detail-body').textContent = hw.content;
+
+    // 確認情報を取得
+    const { data: confs } = await supabase.from('handover_confirmations').select('*').eq('handover_id', handoverId);
+    const myConf = (confs || []).find(c => c.line_uid === currentUser.line_uid);
+    const confirmedList = document.getElementById('hw-confirmed-list');
+    const unconfirmedList = document.getElementById('hw-unconfirmed-list');
+    const confirmArea = document.getElementById('hw-confirm-area');
+
+    // 確認ボタン
+    if (myConf) {
+      const actionLabel = myConf.action === 'takeover' ? '引き継ぎました' : '対応しました';
+      confirmArea.innerHTML = `<div class="hw-confirmed-banner">✅ ${actionLabel}（${formatTime(myConf.confirmed_at)}）</div>`;
+    } else {
+      confirmArea.innerHTML = `
+        <button class="hw-confirm-btn hw-btn-takeover" onclick="confirmHandover('takeover')">🔄 引き継ぎました</button>
+        <button class="hw-confirm-btn hw-btn-done" onclick="confirmHandover('done')">✅ 対応しました</button>
+      `;
+    }
+
+    // 確認済みメンバー
+    const confirmedUids = new Set((confs || []).map(c => c.line_uid));
+    if ((confs || []).length > 0) {
+      confirmedList.innerHTML = (confs || []).map(c =>
+        `<div class="person-row"><div><div class="person-name">${escHtml(c.display_name)}</div><div class="person-time">${c.action === 'takeover' ? '引き継ぎました' : '対応しました'}</div></div><div style="display:flex;align-items:center;gap:8px;"><div class="person-time">${formatTime(c.confirmed_at)}</div><div class="check-yes">✅</div></div></div>`
+      ).join('');
+    } else {
+      confirmedList.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-light);font-size:13px;">まだ誰も確認していません</div>';
+    }
+
+    // 未確認メンバー
+    const unconfirmed = members.filter(m => !confirmedUids.has(m.line_uid));
+    if (unconfirmed.length > 0) {
+      unconfirmedList.innerHTML = unconfirmed.map(m =>
+        `<div class="person-row"><div class="person-name">${escHtml(m.display_name)}</div><div class="check-no">❌</div></div>`
+      ).join('');
+    } else {
+      unconfirmedList.innerHTML = '<div style="padding:16px;text-align:center;color:var(--green);font-size:13px;font-weight:600;">全員が確認しました ✅</div>';
+    }
+
+    showScreen('screen-handover-detail');
+  } catch(e) { console.error(e); showToast('取得に失敗しました'); }
+}
+
+async function confirmHandover(action) {
+  if (!currentHandoverId) return;
+  try {
+    const { error } = await supabase.from('handover_confirmations').insert({
+      handover_id: currentHandoverId,
+      line_uid: currentUser.line_uid,
+      display_name: currentUser.display_name,
+      action: action
+    });
+    if (error && error.code === '23505') { showToast('すでに確認済みです'); return; }
+    if (error) throw error;
+    const label = action === 'takeover' ? '引き継ぎました' : '対応しました';
+    showToast(`✅ ${label}`);
+    await showHandoverDetail(currentHandoverId);
+    await updateHandoverBadge();
+  } catch(e) { console.error(e); showToast('確認に失敗しました'); }
 }
 
 async function showDetail(messageId) {
@@ -1645,7 +2088,8 @@ function showScreen(id) {
     target.classList.add('active');
     if (id === 'screen-approval') loadApprovals();
     if (id === 'screen-home') loadMessages();
-    if (id === 'screen-compose') { selectedPriority = 'info'; selectPriority('info'); renderTemplates(); }
+    if (id === 'screen-handover') loadHandoverNotes();
+    if (id === 'screen-compose') { selectedPriority = 'info'; selectPriority('info'); renderTemplates(); selectedComposeType = 'msg'; applyComposeType('msg'); selectedHandoverPriority = 'check'; applyHandoverPriorityUI('check'); }
   }
 }
 function hideLoading() { document.getElementById('loading').style.display = 'none'; }
