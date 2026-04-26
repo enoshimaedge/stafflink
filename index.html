@@ -1209,6 +1209,14 @@ async function loadMessages() {
     const { data: memberData } = await supabase.from('group_members').select('*')
       .eq('group_session_id', currentGroup.id).eq('status', 'approved');
     members = memberData || [];
+
+    // 引き継ぎも常に最新を取得
+    const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
+    const { data: hwData } = await supabase.from('handover_notes').select('*')
+      .eq('group_session_id', currentGroup.id).gte('created_at', cutoff)
+      .order('created_at', { ascending: false });
+    handoverNotes = hwData || [];
+
     renderMessages();
     const { count } = await supabase.from('group_members').select('*', { count: 'exact', head: true })
       .eq('group_session_id', currentGroup.id).eq('status', 'pending');
@@ -1220,12 +1228,20 @@ async function loadMessages() {
   } catch (e) { console.error(e); }
 }
 
-function setHomeFilter(f) {
+async function setHomeFilter(f) {
   homeFilter = f;
   ['msg','handover','all'].forEach(k => {
     const el = document.getElementById('filter-chip-' + k);
     if (el) el.classList.toggle('active', k === f);
   });
+  if (f === 'handover' || f === 'all') {
+    // 引き継ぎデータを最新に更新してから描画
+    const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
+    const { data: notes } = await supabase.from('handover_notes').select('*')
+      .eq('group_session_id', currentGroup.id).gte('created_at', cutoff)
+      .order('created_at', { ascending: false });
+    handoverNotes = notes || [];
+  }
   renderMessages();
 }
 
