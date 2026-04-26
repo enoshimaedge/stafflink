@@ -1498,15 +1498,21 @@ async function sendMessage() {
 // ═══════════════════════════════════════════
 async function updateHandoverBadge() {
   try {
-    // 72時間以内の引き継ぎを取得
+    // 72時間以内の引き継ぎを取得（sender_line_uidも含めて取得）
     const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
-    const { data: notes } = await supabase.from('handover_notes').select('id')
+    const { data: notes } = await supabase.from('handover_notes').select('id, sender_line_uid')
       .eq('group_session_id', currentGroup.id).gte('created_at', cutoff);
     if (!notes || notes.length === 0) {
       document.getElementById('handover-badge-bar').style.display = 'none';
       return;
     }
-    const noteIds = notes.map(n => n.id);
+    // 自分が送った引き継ぎは除外（自分は確認不要）
+    const othersNotes = notes.filter(n => n.sender_line_uid !== currentUser.line_uid);
+    if (othersNotes.length === 0) {
+      document.getElementById('handover-badge-bar').style.display = 'none';
+      return;
+    }
+    const noteIds = othersNotes.map(n => n.id);
     const { data: myConfirms } = await supabase.from('handover_confirmations').select('handover_id')
       .in('handover_id', noteIds).eq('line_uid', currentUser.line_uid);
     const confirmedIds = new Set((myConfirms || []).map(c => c.handover_id));
@@ -1576,16 +1582,22 @@ function renderHandoverCardHtml(hw, confs, myConf) {
   const pClass  = { action: 'hw-action', check: 'hw-check', done: 'hw-done' };
   const p = hw.priority || 'check';
   const confirmNames = (confs || []).map(c => c.display_name).join('・');
+  const isSender = hw.sender_line_uid === currentUser.line_uid;
   const confirmedByMe = myConf ? true : false;
+  let statusHtml;
+  if (isSender) {
+    statusHtml = `<div style="font-size:11px; color:var(--text-light); margin-top:6px;">📋 自分が投稿${confirmNames ? '（確認済：' + escHtml(confirmNames) + '）' : ''}</div>`;
+  } else if (confirmedByMe) {
+    statusHtml = `<div class="handover-confirm-names">✅ 確認済み${confirmNames ? '：' + escHtml(confirmNames) : ''}</div>`;
+  } else {
+    statusHtml = `<div class="handover-unconfirmed">⚠️ 未確認${confirmNames ? '（確認済：' + escHtml(confirmNames) + '）' : ''}</div>`;
+  }
   return `
     <div class="handover-card priority-${p}" onclick="showHandoverDetail('${hw.id}')">
       <span class="handover-priority-badge ${pClass[p]}">${pLabels[p]}</span>
       <div class="msg-title">${escHtml((hw.content||'').substring(0,40))}${ (hw.content||'').length > 40 ? '…' : ''}</div>
       <div class="msg-meta">${escHtml(hw.sender_name)}　${formatTime(hw.created_at)}</div>
-      ${confirmedByMe
-        ? `<div class="handover-confirm-names">✅ 確認済み${confirmNames ? '：' + escHtml(confirmNames) : ''}</div>`
-        : `<div class="handover-unconfirmed">⚠️ 未確認${confirmNames ? '（確認済：' + escHtml(confirmNames) + '）' : ''}</div>`
-      }
+      ${statusHtml}
     </div>`;
 }
 
