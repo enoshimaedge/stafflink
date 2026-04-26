@@ -706,7 +706,7 @@
           <div class="priority-sel-btn hw-check" id="hwsel-check" onclick="selectHandoverPriority('check')" style="opacity:0.45;">🟡 通常</div>
         </label>
         <label style="flex:1; cursor:pointer;">
-          <div class="priority-sel-btn hw-done" id="hwsel-done" onclick="selectHandoverPriority('done')" style="opacity:0.45;">🟢 済み</div>
+          <div class="priority-sel-btn hw-done" id="hwsel-done" onclick="selectHandoverPriority('done')" style="opacity:0.45;">🟢 確認要</div>
         </label>
       </div>
     </div>
@@ -1572,7 +1572,7 @@ async function loadHandoverNotes() {
 }
 
 function renderHandoverCardHtml(hw, confs, myConf) {
-  const pLabels = { action: '🔴 重要', check: '🟡 通常', done: '🟢 済み' };
+  const pLabels = { action: '🔴 重要', check: '🟡 通常', done: '🟢 確認要' };
   const pClass  = { action: 'hw-action', check: 'hw-check', done: 'hw-done' };
   const p = hw.priority || 'check';
   const confirmNames = (confs || []).map(c => c.display_name).join('・');
@@ -1607,7 +1607,7 @@ async function showHandoverDetail(handoverId) {
     if (!hw) return;
     currentHandoverId = handoverId;
 
-    const pLabels = { action: '🔴 重要', check: '🟡 通常', done: '🟢 済み' };
+    const pLabels = { action: '🔴 重要', check: '🟡 通常', done: '🟢 確認要' };
     document.getElementById('hw-detail-title').textContent = pLabels[hw.priority] || '引き継ぎ詳細';
     document.getElementById('hw-detail-meta').textContent = `${escHtml(hw.sender_name)}　${formatTime(hw.created_at)}`;
     document.getElementById('hw-detail-body').textContent = hw.content;
