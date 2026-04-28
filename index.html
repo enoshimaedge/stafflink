@@ -1831,10 +1831,10 @@ async function showMemberList() {
   try {
     const { data: memberList } = await supabase
       .from('group_members')
-      .select('display_name, is_creator, joined_at')
+      .select('display_name, is_creator, created_at')
       .eq('group_session_id', currentGroup.id)
       .eq('status', 'approved')
-      .order('joined_at', { ascending: true });
+      .order('created_at', { ascending: true });
     if (!memberList || memberList.length === 0) {
       content.innerHTML = '<div style="text-align:center;color:var(--text-light);padding:24px;">メンバーがいません</div>';
       return;
