@@ -1811,8 +1811,11 @@ async function recordRead(messageId) {
       .eq('message_id', messageId).eq('line_uid', currentUser.line_uid).single();
     if (existing) return;
     await supabase.from('read_receipts').insert({ message_id: messageId, line_uid: currentUser.line_uid, read_at: new Date().toISOString() });
+    // 送信者自身が開いてもread_countを増やさない（送信者は分母・分子から除外）
     const msg = messages.find(m => m.id === messageId);
-    if (msg) await supabase.from('messages').update({ read_count: (msg.read_count || 0) + 1 }).eq('id', messageId);
+    if (msg && msg.sender_line_uid !== currentUser.line_uid) {
+      await supabase.from('messages').update({ read_count: (msg.read_count || 0) + 1 }).eq('id', messageId);
+    }
   } catch (e) {}
 }
 
