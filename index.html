@@ -2276,7 +2276,24 @@ async function leaveGroup() {
         await supabase.from('messages').update({ read_count: (msg.read_count || 0) + 1 }).eq('id', msgId);
       }
     }
-    await supabase.from('group_members').update({ status: 'left' }).eq('id', currentMemberId);
+    // 管理者が退出する場合、在籍中の最古参メンバーにis_creatorを引き継ぐ
+    if (isCreator) {
+      const { data: remainingMembers } = await supabase
+        .from('group_members')
+        .select('id, created_at')
+        .eq('group_session_id', currentGroup.id)
+        .eq('status', 'approved')
+        .neq('id', currentMemberId)
+        .order('created_at', { ascending: true })
+        .limit(1);
+      if (remainingMembers && remainingMembers.length > 0) {
+        // 最古参メンバーにis_creator=trueを付与
+        await supabase.from('group_members')
+          .update({ is_creator: true })
+          .eq('id', remainingMembers[0].id);
+      }
+    }
+    await supabase.from('group_members').update({ status: 'left', is_creator: false }).eq('id', currentMemberId);
     localStorage.clear(); currentGroup = null; currentMemberId = null;
     showScreen('screen-start'); showToast('グループを退出しました');
   } catch (e) { showToast('エラーが発生しました。'); }
