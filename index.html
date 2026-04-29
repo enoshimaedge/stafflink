@@ -1619,17 +1619,20 @@ async function loadHandoverNotes() {
       return;
     }
 
-    // 優先度順（要対応→確認事項→完了済み）、未確認優先、新しい順
+    // 並び順：①完了済み（誰かがtakeover/done）は下へ ②未確認優先 ③優先度順 ④新しい順
     const priorityOrder = { action: 0, check: 1, done: 2 };
     const myUid = currentUser.line_uid;
     handoverNotes.sort((a, b) => {
+      const aCompleted = (confirmMap[a.id] || []).some(c => c.action === 'takeover' || c.action === 'done');
+      const bCompleted = (confirmMap[b.id] || []).some(c => c.action === 'takeover' || c.action === 'done');
+      if (aCompleted !== bCompleted) return aCompleted ? 1 : -1; // 完了済みは下へ
       const aConf = (confirmMap[a.id] || []).some(c => c.line_uid === myUid);
       const bConf = (confirmMap[b.id] || []).some(c => c.line_uid === myUid);
-      if (aConf !== bConf) return aConf ? 1 : -1;
+      if (aConf !== bConf) return aConf ? 1 : -1; // 自分が未確認は上へ
       const ap = priorityOrder[a.priority] ?? 1;
       const bp = priorityOrder[b.priority] ?? 1;
       if (ap !== bp) return ap - bp;
-      return new Date(b.created_at) - new Date(a.created_at);
+      return new Date(b.created_at) - new Date(a.created_at); // 新しい順
     });
 
     let html = '<div class="card">';
@@ -1650,9 +1653,20 @@ function renderHandoverCardHtml(hw, confs, myConf) {
   const confirmNames = (confs || []).map(c => c.display_name).join('・');
   const isSender = hw.sender_line_uid === currentUser.line_uid;
   const confirmedByMe = myConf ? true : false;
+  // 誰かがtakeover/doneを押していたら完了済み
+  const isCompleted = (confs || []).some(c => c.action === 'takeover' || c.action === 'done');
+  const completedConf = (confs || []).find(c => c.action === 'takeover' || c.action === 'done');
   let statusHtml;
   if (isSender) {
-    statusHtml = `<div style="font-size:11px; color:var(--text-light); margin-top:6px;">📋 自分が投稿${confirmNames ? '（確認済：' + escHtml(confirmNames) + '）' : ''}</div>`;
+    if (isCompleted) {
+      const cl = completedConf.action === 'takeover' ? '引き継ぎました' : '対応しました';
+      statusHtml = `<div style="font-size:11px; color:var(--text-light); margin-top:6px;">📋 自分が投稿（🔒 ${escHtml(completedConf.display_name)}が${cl}）</div>`;
+    } else {
+      statusHtml = `<div style="font-size:11px; color:var(--text-light); margin-top:6px;">📋 自分が投稿${confirmNames ? '（確認済：' + escHtml(confirmNames) + '）' : ''}</div>`;
+    }
+  } else if (isCompleted) {
+    const cl = completedConf.action === 'takeover' ? '引き継ぎました' : '対応しました';
+    statusHtml = `<div class="handover-confirm-names">🔒 ${escHtml(completedConf.display_name)}が${cl}</div>`;
   } else if (confirmedByMe) {
     statusHtml = `<div class="handover-confirm-names">✅ 確認済み${confirmNames ? '：' + escHtml(confirmNames) : ''}</div>`;
   } else {
@@ -1702,10 +1716,18 @@ async function showHandoverDetail(handoverId) {
       .eq('group_session_id', currentGroup.id).eq('status', 'approved');
     const allMembers = latestMembers || [];
 
-    // 確認ボタン：投稿者本人には表示しない
+    // 誰かがすでに「引き継ぎました」または「対応しました」を押していたら完了済み
+    const isCompleted = (confs || []).some(c => c.action === 'takeover' || c.action === 'done');
+    const completedConf = (confs || []).find(c => c.action === 'takeover' || c.action === 'done');
+
+    // 確認ボタン：投稿者本人・完了済み・自分が確認済みの場合はボタン非表示
     const isSender = hw.sender_line_uid === currentUser.line_uid;
     if (isSender) {
       confirmArea.innerHTML = `<div style="background:#f1f8f4; border:1.5px solid #66bb6a; border-radius:12px; padding:12px 16px; text-align:center; font-size:13px; color:#2e7d32; margin-bottom:10px;">📋 自分が投稿した引き継ぎです</div>`;
+    } else if (isCompleted) {
+      // 誰かが完了済み→ボタンをロック・完了済みバナーを表示
+      const completedLabel = completedConf.action === 'takeover' ? '引き継ぎました' : '対応しました';
+      confirmArea.innerHTML = `<div class="hw-confirmed-banner">🔒 ${escHtml(completedConf.display_name)}が「${completedLabel}」（${formatTime(completedConf.confirmed_at)}）</div>`;
     } else if (myConf) {
       const actionLabel = myConf.action === 'takeover' ? '引き継ぎました' : '対応しました';
       confirmArea.innerHTML = `<div class="hw-confirmed-banner">✅ ${actionLabel}（${formatTime(myConf.confirmed_at)}）</div>`;
