@@ -82,48 +82,44 @@
   }
 
   /* ── コンテンツエリア ── */
+  /* ── メインレイアウト：上スクロール＋下固定 ── */
   .signage-body {
     flex: 1;
-    display: grid;
-    grid-template-columns: 1fr 220px;
-    grid-template-rows: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
     padding: 10px;
     overflow: hidden;
+    min-height: 0;
   }
 
-  /* スマホ縦画面：上にメッセージ・下に天気+QR横並び */
-  /* 縦画面用クラス（JSで付与） */
-  .portrait .signage-body {
-    grid-template-columns: 1fr 1fr !important;
-    grid-template-rows: 1fr 180px !important;
+  /* 上部：メッセージ（スクロール可・残りスペース全て） */
+  #card-message {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
-  .portrait #card-message {
-    grid-column: 1 / 3 !important;
-    grid-row: 1 / 2 !important;
+
+  /* 下部：天気とQRを横並び固定 */
+  .signage-bottom {
+    display: flex;
+    gap: 10px;
+    height: 180px;
+    flex-shrink: 0;
   }
-  .portrait #card-weather {
-    grid-column: 1 / 2 !important;
-    grid-row: 2 / 3 !important;
+
+  #card-weather {
+    flex: 1;
+    min-width: 0;
   }
-  .portrait #card-qr {
-    grid-column: 2 / 3 !important;
-    grid-row: 2 / 3 !important;
+
+  #card-qr {
+    flex: 1;
+    min-width: 0;
+    align-items: center;
   }
-  .portrait .weather-row { flex-direction: row !important; gap: 6px !important; }
-  .portrait .weather-day { flex-direction: column !important; justify-content: center !important; padding: 4px !important; }
-  .portrait .weather-day-left { flex-direction: column !important; gap: 2px !important; }
-  .portrait .weather-day-label { width: auto !important; font-size: 10px !important; }
-  .portrait .weather-icon { font-size: 18px !important; }
-  .portrait .weather-temp { font-size: 15px !important; }
-  .portrait .weather-temp-range { font-size: 9px !important; }
-  .portrait .weather-temp-block { text-align: center !important; }
-  .portrait #qr-canvas img, .portrait #qr-canvas canvas { width: 70px !important; height: 70px !important; }
-  .portrait .qr-label { font-size: 8px !important; }
-  .portrait .qr-container { gap: 4px !important; }
-  .portrait .message-body { font-size: 13px !important; }
-  .portrait .s-card { padding: 8px 10px !important; }
-  .portrait .s-card-title { font-size: 10px !important; margin-bottom: 6px !important; }
 
   /* ── カード共通 ── */
   .s-card {
@@ -207,37 +203,31 @@
   }
   .weather-row {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex: 1;
-    flex-direction: column;
+    flex-direction: row;
   }
   .weather-day {
     flex: 1;
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     background: rgba(255,255,255,0.06);
     border-radius: 10px;
-    padding: 8px 12px;
+    padding: 6px 4px;
   }
-  .weather-day-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+  .weather-day-left { display: none; }
   .weather-day-label {
-    font-size: 12px;
+    font-size: 11px;
     color: rgba(255,255,255,0.5);
     font-weight: 700;
-    width: 24px;
+    margin-bottom: 4px;
   }
-  .weather-icon { font-size: 22px; }
-  .weather-temp-block {
-    text-align: right;
-  }
+  .weather-icon { font-size: 22px; margin-bottom: 2px; }
+  .weather-temp-block { text-align: center; }
   .weather-temp {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 700;
     color: white;
   }
@@ -368,23 +358,24 @@
       <div class="message-list" id="message-list"></div>
     </div>
 
-    <!-- 天気・祝日 -->
-    <div class="s-card" id="card-weather">
-      <div class="s-card-title">🌤 天気・気温　<span id="weather-region-name" style="font-size:10px; color:rgba(255,255,255,0.4); font-weight:400; letter-spacing:0;"></span></div>
-      <div class="weather-row" id="weather-row">
-        <div class="weather-error">取得中...</div>
+    <!-- 天気・祝日 + QRコード（下部固定） -->
+    <div class="signage-bottom">
+      <div class="s-card" id="card-weather">
+        <div class="s-card-title">🌤 天気・気温　<span id="weather-region-name" style="font-size:10px; color:rgba(255,255,255,0.4); font-weight:400; letter-spacing:0;"></span></div>
+        <div class="weather-row" id="weather-row">
+          <div class="weather-error">取得中...</div>
+        </div>
+        <div id="holiday-display" style="display:none;" class="holiday-bar"></div>
       </div>
-      <div id="holiday-display" style="display:none;" class="holiday-bar"></div>
-    </div>
 
-    <!-- QRコード -->
-    <div class="s-card" id="card-qr">
-      <div class="s-card-title">📱 グループ参加QR</div>
-      <div class="qr-container">
-        <div id="qr-canvas" style="background:white; border-radius:8px; padding:6px; display:inline-block;"></div>
-        <div class="qr-label">
-          このQRでEdgeOpsグループに参加<br>
-          <span style="font-size:10px; color:rgba(255,255,255,0.35);">※このQRは無効になることがあります</span>
+      <div class="s-card" id="card-qr">
+        <div class="s-card-title">📱 グループ参加QR</div>
+        <div class="qr-container">
+          <div id="qr-canvas" style="background:white; border-radius:8px; padding:6px; display:inline-block;"></div>
+          <div class="qr-label">
+            このQRでEdgeOpsグループに参加<br>
+            <span style="font-size:10px; color:rgba(255,255,255,0.35);">※このQRは無効になることがあります</span>
+          </div>
         </div>
       </div>
     </div>
@@ -656,14 +647,10 @@ async function loadWeather() {
       const w = getWeatherIcon(code);
       html += `
         <div class="weather-day">
-          <div class="weather-day-left">
-            <div class="weather-day-label">${days[i]}</div>
-            <div class="weather-icon">${w.icon}</div>
-          </div>
-          <div class="weather-temp-block">
-            <div class="weather-temp">${tMax}°</div>
-            <div class="weather-temp-range">↑${tMax}° ↓${tMin}°</div>
-          </div>
+          <div class="weather-day-label">${days[i]}</div>
+          <div class="weather-icon">${w.icon}</div>
+          <div class="weather-temp">${tMax}°</div>
+          <div class="weather-temp-range">↑${tMax}° ↓${tMin}°</div>
         </div>
       `;
     }
@@ -729,14 +716,24 @@ function setupOfflineDetection() {
 
 // 縦横レイアウト判定（JSで強制制御）
 function applyLayout() {
-  // 複数の方法で縦画面を判定（Fully Kioskなど各種WebView対応）
-  const bySize = window.innerHeight > window.innerWidth;
-  const byScreen = screen.height > screen.width;
-  const byOrientation = screen.orientation 
-    ? screen.orientation.type.includes('portrait')
-    : (window.orientation === 0 || window.orientation === 180);
+  // URLパラメータで強制指定可能（Fully Kiosk用）
+  const params = new URLSearchParams(window.location.search);
+  const forceLayout = params.get('layout'); // 'portrait' or 'landscape'
   
-  const isPortrait = bySize || byScreen || byOrientation;
+  let isPortrait;
+  if (forceLayout === 'portrait') {
+    isPortrait = true;
+  } else if (forceLayout === 'landscape') {
+    isPortrait = false;
+  } else {
+    // 複数の方法で縦画面を判定
+    const bySize = window.innerHeight > window.innerWidth;
+    const byScreen = screen.height > screen.width;
+    const byOrientation = screen.orientation 
+      ? screen.orientation.type.includes('portrait')
+      : (window.orientation === 0 || window.orientation === 180);
+    isPortrait = bySize || byScreen || byOrientation;
+  }
   
   if (isPortrait) {
     document.body.classList.add('portrait');
