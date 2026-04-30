@@ -611,13 +611,10 @@ async function loadMessage() {
     // サイネージ端末のline_uidセット
     const signageUids = new Set(allMembers.filter(m => m.is_signage).map(m => m.line_uid));
 
-    // 既読数マップ（サイネージ端末・送信者を除外）
-    const senderMap = {};
-    messages.forEach(m => { senderMap[m.id] = m.sender_line_uid; });
+    // 既読数マップ（サイネージ端末を除外）
     const readCountMap = {};
     receipts.forEach(r => {
       if (signageUids.has(r.line_uid)) return; // サイネージ除外
-      if (senderMap[r.message_id] === r.line_uid) return; // 送信者除外
       readCountMap[r.message_id] = (readCountMap[r.message_id] || 0) + 1;
     });
     // 確認済マップ（引き継ぎIDごとの確認者リスト）
@@ -710,10 +707,12 @@ async function loadMessage() {
       if (humanCount > 0) {
         if (item._type === 'message') {
           const readCount = readCountMap[item.id] || 0;
-          if (readCount >= humanCount) {
+          // 送信者を分母から除外
+          const receiverCount = humanMembers.filter(m => m.line_uid !== item.sender_line_uid).length;
+          if (readCount >= receiverCount) {
             readBadge = `<span style="font-size:10px; color:#66bb6a; font-weight:700;">✅ 全員既読</span>`;
           } else {
-            readBadge = `<span style="font-size:10px; color:#f9a825; font-weight:700;">⚠ ${readCount}/${humanCount}人既読</span>`;
+            readBadge = `<span style="font-size:10px; color:#f9a825; font-weight:700;">⚠ ${readCount}/${receiverCount}人既読</span>`;
           }
         } else {
           const confirmedCount = item._confirmed || 0;
@@ -728,7 +727,7 @@ async function loadMessage() {
       }
 
       return `
-        <div class="message-item ${p.itemCls}" onclick="openModal('${bodyEscaped}','${p.label}','${p.cls}','${timeStr}','${item.id}','${item._type}')" style="cursor:pointer;">
+        <div class="message-item ${p.itemCls}" onclick="openModal('${bodyEscaped}','${p.label}','${p.cls}','${timeStr}','${item.id}','${item._type}','${item.sender_line_uid || ''}')" style="cursor:pointer;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
             <span class="message-priority ${p.cls}">${p.label}</span>
             ${readBadge}
@@ -746,7 +745,7 @@ async function loadMessage() {
 }
 
 // メッセージ詳細モーダル（既読/確認情報付き）
-async function openModal(body, priorityLabel, priorityCls, timeStr, itemId, itemType) {
+async function openModal(body, priorityLabel, priorityCls, timeStr, itemId, itemType, senderUid) {
   const modal = document.getElementById('modal-msg-detail');
   document.getElementById('modal-priority-badge').innerHTML = `<span class="message-priority ${priorityCls}">${priorityLabel}</span>`;
   document.getElementById('modal-body').textContent = body;
@@ -761,8 +760,8 @@ async function openModal(body, priorityLabel, priorityCls, timeStr, itemId, item
       .eq('group_session_id', currentGroupData.id)
       .eq('status', 'approved');
 
-    // is_signage=trueのサイネージ端末を除外
-    const humanMembers = (members || []).filter(m => !m.is_signage);
+    // is_signage=trueのサイネージ端末・送信者を除外
+    const humanMembers = (members || []).filter(m => !m.is_signage && m.line_uid !== senderUid);
 
     let readUids = [];
     if (itemType === 'message') {
