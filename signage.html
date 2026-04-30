@@ -634,11 +634,11 @@ async function loadMessage() {
     // 引き継ぎソート：未確認優先→優先度順→新しい順
     const priorityOrderH = { action: 0, check: 1, done: 2 };
     handoverItems.sort((a, b) => {
-      // 確認状況で3段階ソート：0人確認(0)→一部確認(1)→全員確認(2)
+      // WEBアプリと同じ：誰か1人でも確認したら下へ、0人が最上位
       const confirmOrder = (item) => {
-        if (item._fullyConfirmed) return 2;
-        if (item._confirmed > 0) return 1;
-        return 0; // 誰も確認していない
+        if (item._confirmed === 0) return 0; // 誰も確認していない→最上位
+        if (item._fullyConfirmed) return 2;  // 全員確認済→最下位
+        return 1;                             // 一部確認済→中位
       };
       const ca = confirmOrder(a);
       const cb = confirmOrder(b);
