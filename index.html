@@ -1326,11 +1326,27 @@ function renderMessages() {
   if (showHandover && handoverNotes.length > 0) {
     html += `<div class="card" style="margin-bottom:12px;">`;
     html += `<div style="padding:10px 16px; font-size:12px; font-weight:700; color:#e65100; border-bottom:1px solid var(--border);">📋 引き継ぎノート</div>`;
-    handoverNotes.slice(0, 5).forEach(hw => {
-      // ホーム画面でもconfirmMapを使って完了済み・確認状態を正しく表示
-      const hwConfirmMap = window._hwConfirmMap || {};
+
+    // 引き継ぎノート画面と同じソート順で表示
+    const hwConfirmMap = window._hwConfirmMap || {};
+    const priorityOrder = { action: 0, check: 1, done: 2 };
+    const myUid = currentUser.line_uid;
+    const sortedHandovers = [...handoverNotes].sort((a, b) => {
+      const aCompleted = (hwConfirmMap[a.id] || []).some(c => c.action === 'takeover' || c.action === 'done');
+      const bCompleted = (hwConfirmMap[b.id] || []).some(c => c.action === 'takeover' || c.action === 'done');
+      if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+      const aConf = (hwConfirmMap[a.id] || []).some(c => c.line_uid === myUid);
+      const bConf = (hwConfirmMap[b.id] || []).some(c => c.line_uid === myUid);
+      if (aConf !== bConf) return aConf ? 1 : -1;
+      const ap = priorityOrder[a.priority] ?? 1;
+      const bp = priorityOrder[b.priority] ?? 1;
+      if (ap !== bp) return ap - bp;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+    sortedHandovers.slice(0, 5).forEach(hw => {
       const confs = hwConfirmMap[hw.id] || [];
-      const myConf = confs.find(c => c.line_uid === currentUser.line_uid);
+      const myConf = confs.find(c => c.line_uid === myUid);
       html += renderHandoverCardHtml(hw, confs, myConf);
     });
     if (handoverNotes.length > 5) {
@@ -1346,8 +1362,8 @@ function renderMessages() {
 
     // 月内ソート：①未読あり→全員既読 ②緊急→通常→連絡
     msgs.sort((a, b) => {
-      const aReceivers = a.receiver_count != null ? a.receiver_count : members.filter(m => m.line_uid !== a.sender_line_uid).length;
-      const bReceivers = b.receiver_count != null ? b.receiver_count : members.filter(m => m.line_uid !== b.sender_line_uid).length;
+      const aReceivers = a.receiver_count != null ? a.receiver_count : members.filter(m => m.line_uid !== a.sender_line_uid && !m.is_signage).length;
+      const bReceivers = b.receiver_count != null ? b.receiver_count : members.filter(m => m.line_uid !== b.sender_line_uid && !m.is_signage).length;
       const aUnread = aReceivers - (a.read_count || 0);
       const bUnread = bReceivers - (b.read_count || 0);
       const aHasUnread = aUnread > 0 ? 0 : 1;
@@ -2018,12 +2034,13 @@ async function loadReportData(tab) {
     // メンバー取得
     const { data: members } = await supabase
       .from('group_members')
-      .select('id, display_name, line_uid')
+      .select('id, display_name, line_uid, is_signage')
       .eq('group_session_id', currentGroup.id)
       .eq('status', 'approved');
-    const memberCount = (members || []).length;
+    const humanMembers = (members || []).filter(m => !m.is_signage);
+    const memberCount = humanMembers.length;
     const memberMap = {};
-    (members || []).forEach(m => { memberMap[m.line_uid] = m.display_name; });
+    humanMembers.forEach(m => { memberMap[m.line_uid] = m.display_name; });
 
     // 統計計算
     const totalMsgs = (msgs || []).length;
@@ -2031,18 +2048,19 @@ async function loadReportData(tab) {
     // 平均既読率（送信時点のreceiver_countを使用・メンバー増減の影響を受けない）
     let totalRate = 0;
     (msgs || []).forEach(msg => {
-      const msgReceipts = receipts.filter(r => r.message_id === msg.id && r.line_uid !== msg.sender_line_uid);
+      const msgReceipts = receipts.filter(r => r.message_id === msg.id && r.line_uid !== msg.sender_line_uid && memberMap[r.line_uid]);
       // receiver_countが保存済みならそれを使う（送信時点で固定）
-      // NULLの場合（旧メッセージ）は現在のメンバー数から計算
+      // NULLの場合（旧メッセージ）は現在のサイネージ除外メンバー数から計算
       const receiverCount = msg.receiver_count != null ? msg.receiver_count : memberCount - 1;
       totalRate += receiverCount > 0 ? msgReceipts.length / receiverCount : 0;
     });
     const avgRate = totalMsgs > 0 ? Math.round(totalRate / totalMsgs * 100) : 0;
 
-    // 最速既読者（全メッセージで最も平均既読時間が短いメンバー）
+    // 最速既読者（全メッセージで最も平均既読時間が短いメンバー）- サイネージ除外
     const memberReadTimes = {};
     const memberReadCounts = {};
     receipts.forEach(r => {
+      if (!memberMap[r.line_uid]) return; // サイネージまたは退出済みを除外
       const msg = (msgs || []).find(m => m.id === r.message_id);
       if (!msg) return;
       const diff = (new Date(r.read_at) - new Date(msg.created_at)) / 60000;
@@ -2059,12 +2077,12 @@ async function loadReportData(tab) {
       ? `${fastestName}（平均${fastestMin < 60 ? Math.round(fastestMin) + '分' : Math.round(fastestMin/60) + '時間'}）`
       : '—';
 
-    // 要注意スタッフ（既読率50%未満）
+    // 要注意スタッフ（既読率50%未満）- サイネージ除外
     const memberRateMap = {};
-    (members || []).forEach(m => { memberRateMap[m.line_uid] = { name: m.display_name, read: 0, total: 0 }; });
+    humanMembers.forEach(m => { memberRateMap[m.line_uid] = { name: m.display_name, read: 0, total: 0 }; });
     (msgs || []).forEach(msg => {
       const msgReceipts = receipts.filter(r => r.message_id === msg.id);
-      (members || []).forEach(m => {
+      humanMembers.forEach(m => {
         if (m.line_uid === msg.sender_line_uid) return; // 送信者は除く
         memberRateMap[m.line_uid].total++;
         if (msgReceipts.find(r => r.line_uid === m.line_uid)) memberRateMap[m.line_uid].read++;
