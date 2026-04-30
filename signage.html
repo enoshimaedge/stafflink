@@ -719,11 +719,19 @@ async function init() {
 }
 
 // 起動
-// DOMContentLoadedが既に発火済みの場合も考慮
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
+// QRCodeライブラリの読み込みを待ってから初期化
+function waitForLibsAndInit() {
+  if (typeof QRCode === 'undefined' || typeof window.supabase === 'undefined') {
+    setTimeout(waitForLibsAndInit, 100);
+    return;
+  }
   init();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', waitForLibsAndInit);
+} else {
+  waitForLibsAndInit();
 }
 </script>
 </body>
