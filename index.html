@@ -565,10 +565,10 @@
         <input class="form-input" id="input-group-id" type="text" placeholder="例：SL-K9mX2-pQ7r" style="text-transform:uppercase;">
       </div>
       <div style="margin-bottom:12px;">
-        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:14px; color:var(--text-mid);">
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:10px 12px; background:#f8fff9; border-radius:10px; border:1.5px solid var(--border);">
           <input type="checkbox" id="join-is-signage"
             style="width:18px; height:18px; accent-color:var(--green); cursor:pointer; flex-shrink:0;">
-          <span>📺 サイネージ端末として参加する / Join as Signage</span>
+          <span style="font-size:14px; color:var(--text);">📺 サイネージ端末として参加する / Join as Signage</span>
         </label>
       </div>
       <button class="btn btn-secondary" onclick="joinGroup()">
@@ -874,6 +874,20 @@
         <button class="btn btn-secondary" onclick="showMemberList()" style="margin-top:8px; background:#f0fff4; border-color:#06C755; color:#047a37;">
           👥 メンバー一覧 / Member List
         </button>
+        <!-- サイネージURL発行 -->
+        <div style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+          <div style="font-size:12px; font-weight:700; color:var(--text-mid); margin-bottom:8px; letter-spacing:0.5px;">📺 サイネージURL管理</div>
+          <div id="signage-url-display" style="font-size:11px; color:var(--text-light); word-break:break-all; margin-bottom:8px; min-height:16px;"></div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary" onclick="generateSignageToken()" style="flex:1; font-size:12px; padding:10px 8px;">
+              🔑 URL発行・再生成
+            </button>
+            <button class="btn btn-secondary" onclick="copySignageUrl()" id="copy-signage-btn" style="flex:1; font-size:12px; padding:10px 8px; display:none;">
+              📋 URLをコピー
+            </button>
+          </div>
+          <div style="font-size:11px; color:#e53935; margin-top:6px;">⚠️ 再生成すると旧URLは即無効化されます</div>
+        </div>
       </div>
     </div>
 
@@ -1236,7 +1250,7 @@ function stopPolling() {
 
 async function loadMessages() {
   try {
-    // messages・members・handover_notes・read_receiptsを並列取得
+    // messages・members・handover_notesを並列取得（起動速度改善）
     const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
     const [
       { data },
@@ -1257,24 +1271,6 @@ async function loadMessages() {
     messages = data || [];
     members = memberData || [];
     handoverNotes = hwData || [];
-
-    // read_receiptsを別途取得（サイネージ除外）
-    const signageUids = new Set((members || []).filter(m => m.is_signage).map(m => m.line_uid));
-    window._signageUids = signageUids;
-    const msgIds = (data || []).map(m => m.id);
-    if (msgIds.length > 0) {
-      const { data: receiptsData } = await supabase.from('read_receipts')
-        .select('message_id,line_uid').in('message_id', msgIds);
-      const receiptsMap = {};
-      (receiptsData || []).forEach(r => {
-        if (signageUids.has(r.line_uid)) return; // サイネージ除外
-        if (!receiptsMap[r.message_id]) receiptsMap[r.message_id] = new Set();
-        receiptsMap[r.message_id].add(r.line_uid);
-      });
-      window._readReceiptsMap = receiptsMap;
-    } else {
-      window._readReceiptsMap = {};
-    }
 
     // ホーム画面でも引き継ぎの確認状態を正しく表示するためconfirmationsを取得
     if (handoverNotes.length > 0) {
@@ -1388,13 +1384,12 @@ function renderMessages() {
 
     // 月内ソート：①未読あり→全員既読 ②緊急→通常→連絡
     msgs.sort((a, b) => {
-      const receiptsMap = window._readReceiptsMap || {};
-      const aReadCount = ([...(receiptsMap[a.id] || new Set())]).filter(u => u !== a.sender_line_uid).length;
-      const bReadCount = ([...(receiptsMap[b.id] || new Set())]).filter(u => u !== b.sender_line_uid).length;
       const aReceivers = a.receiver_count != null ? a.receiver_count : members.filter(m => m.line_uid !== a.sender_line_uid && !m.is_signage).length;
       const bReceivers = b.receiver_count != null ? b.receiver_count : members.filter(m => m.line_uid !== b.sender_line_uid && !m.is_signage).length;
-      const aHasUnread = aReadCount < aReceivers ? 0 : 1;
-      const bHasUnread = bReadCount < bReceivers ? 0 : 1;
+      const aUnread = aReceivers - (a.read_count || 0);
+      const bUnread = bReceivers - (b.read_count || 0);
+      const aHasUnread = aUnread > 0 ? 0 : 1;
+      const bHasUnread = bUnread > 0 ? 0 : 1;
       if (aHasUnread !== bHasUnread) return aHasUnread - bHasUnread;
       const ap = priorityOrder[a.priority || 'info'];
       const bp = priorityOrder[b.priority || 'info'];
@@ -1414,17 +1409,13 @@ function renderMessages() {
     html += `<div class="month-body ${needAccordion && !isOpen ? 'collapsed' : ''}" id="month-${monthKey}" style="max-height:${maxH};">`;
 
     msgs.forEach(msg => {
-      // read_receiptsから正確な既読数を計算（サイネージ・送信者除外済み）
-      const receiptsMap = window._readReceiptsMap || {};
-      const readUids = receiptsMap[msg.id] || new Set();
-      // 送信者を除いた既読数（送信者自身の既読は除外）
-      const readCount = [...readUids].filter(uid => uid !== msg.sender_line_uid).length;
-      // 受信者数：送信者・サイネージを除いたメンバー数
+      // receiver_countが保存済みならそれを使う（送信時点の受信者数で固定）
+      // NULLの場合（旧メッセージ）は現在のメンバーからサイネージを除いて計算
       const receiverCount = msg.receiver_count != null
         ? msg.receiver_count
         : members.filter(m => m.line_uid !== msg.sender_line_uid && !m.is_signage).length;
-      const readPct = receiverCount > 0 ? readCount / receiverCount * 100 : 0;
-      const unreadCount = receiverCount - readCount;
+      const readPct = receiverCount > 0 ? (msg.read_count || 0) / receiverCount * 100 : 0;
+      const unreadCount = receiverCount - (msg.read_count || 0);
       const senderName = getMemberName(msg.sender_line_uid);
       const timeStr = formatTime(msg.created_at);
       const p = msg.priority || 'info';
@@ -1436,7 +1427,7 @@ function renderMessages() {
           <div class="msg-meta">${senderName}　${timeStr}</div>
           <div class="msg-read-bar">
             <div class="bar"><div class="bar-fill${readPct < 70 ? ' warn' : ''}" style="width:${readPct}%"></div></div>
-            <div class="read-count">${readCount}/${receiverCount}人既読</div>
+            <div class="read-count">${msg.read_count || 0}/${receiverCount}人既読</div>
           </div>
           ${unreadCount > 0 ? `<div class="unread-names">❌ 未読：詳細を確認してください</div>` : ''}
         </div>`;
@@ -2288,6 +2279,9 @@ function showProfile() {
   // 参加人数表示（非同期）
   updateMemberCount();
 
+  // サイネージURL表示（管理者のみ・非同期）
+  if (isCreator) updateSignageUrlDisplay();
+
   // 超管理者ボタン表示チェック
   checkSuperAdmin();
   showScreen('screen-profile');
@@ -2321,6 +2315,50 @@ async function checkSuperAdmin() {
 function openAdminPanel() {
   const uid = currentUser?.line_uid || "";
   liff.openWindow({ url: "https://app.edgeops.jp/admin.html?uid=" + uid, external: true });
+}
+
+// ── サイネージURL管理 ──
+function updateSignageUrlDisplay() {
+  const el = document.getElementById('signage-url-display');
+  const copyBtn = document.getElementById('copy-signage-btn');
+  if (!el) return;
+  if (currentGroup?.signage_token && currentGroup?.signage_enabled) {
+    const url = `https://app.edgeops.jp/signage.html?gid=${currentGroup.group_id}&token=${currentGroup.signage_token}&layout=portrait`;
+    el.textContent = url;
+    el.style.color = 'var(--text)';
+    if (copyBtn) copyBtn.style.display = 'block';
+  } else if (currentGroup?.signage_token && !currentGroup?.signage_enabled) {
+    el.textContent = '⚠️ サイネージは無効化されています';
+    el.style.color = '#e53935';
+    if (copyBtn) copyBtn.style.display = 'none';
+  } else {
+    el.textContent = 'URLが未発行です。「URL発行・再生成」をタップしてください。';
+    el.style.color = 'var(--text-light)';
+    if (copyBtn) copyBtn.style.display = 'none';
+  }
+}
+
+async function generateSignageToken() {
+  if (!currentGroup?.id) return;
+  if (!confirm('サイネージURLを発行（再生成）しますか？\n再生成すると旧URLは即無効化されます。')) return;
+  try {
+    const token = Array.from(crypto.getRandomValues(new Uint8Array(24)))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+    const { error } = await supabase.from('group_sessions')
+      .update({ signage_token: token, signage_enabled: true })
+      .eq('id', currentGroup.id);
+    if (error) throw error;
+    currentGroup.signage_token = token;
+    currentGroup.signage_enabled = true;
+    updateSignageUrlDisplay();
+    showToast('サイネージURLを発行しました');
+  } catch (e) { console.error(e); showToast('発行に失敗しました'); }
+}
+
+function copySignageUrl() {
+  if (!currentGroup?.signage_token) return;
+  const url = `https://app.edgeops.jp/signage.html?gid=${currentGroup.group_id}&token=${currentGroup.signage_token}&layout=portrait`;
+  navigator.clipboard?.writeText(url).then(() => showToast('URLをコピーしました'));
 }
 async function leaveGroup() {
   if (!confirm('グループを退出しますか？')) return;
