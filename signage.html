@@ -392,8 +392,9 @@
       <div id="modal-priority-badge"></div>
       <div onclick="closeModal()" style="font-size:28px; cursor:pointer; color:rgba(255,255,255,0.5); line-height:1;">×</div>
     </div>
-    <div id="modal-body" style="font-size:18px; font-weight:600; color:white; line-height:1.6; margin-bottom:16px;"></div>
+    <div id="modal-body" style="font-size:18px; font-weight:600; color:white; line-height:1.6; margin-bottom:12px;"></div>
     <div id="modal-time" style="font-size:12px; color:rgba(255,255,255,0.4);"></div>
+    <div id="modal-members-info"></div>
   </div>
 </div>
 
@@ -613,8 +614,10 @@ async function loadMessage() {
       const mm = String(createdAt.getMinutes()).padStart(2, '0');
       const timeStr = mo + '月' + dd + '日 ' + hh + ':' + mm;
       const bodyEscaped = (item.body || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+      const itemType = item._type;
+      const itemId = item.id;
       return `
-        <div class="message-item ${p.itemCls}" onclick="openModal('${bodyEscaped}','${p.label}','${p.cls}','${timeStr}')" style="cursor:pointer;">
+        <div class="message-item ${p.itemCls}" onclick="openModal('${bodyEscaped}','${p.label}','${p.cls}','${timeStr}','${itemId}','${itemType}')" style="cursor:pointer;">
           <span class="message-priority ${p.cls}">${p.label}</span>
           <div class="message-body">${item.body || ''}</div>
           <div class="message-time">${timeStr} 送信 　<span style="font-size:10px; color:rgba(255,255,255,0.3);">タップで全文表示</span></div>
@@ -628,13 +631,68 @@ async function loadMessage() {
   }
 }
 
-// メッセージ詳細モーダル
-function openModal(body, priorityLabel, priorityCls, timeStr) {
+// メッセージ詳細モーダル（既読/確認情報付き）
+async function openModal(body, priorityLabel, priorityCls, timeStr, itemId, itemType) {
   const modal = document.getElementById('modal-msg-detail');
   document.getElementById('modal-priority-badge').innerHTML = `<span class="message-priority ${priorityCls}">${priorityLabel}</span>`;
   document.getElementById('modal-body').textContent = body;
   document.getElementById('modal-time').textContent = timeStr + ' 送信';
+  document.getElementById('modal-members-info').innerHTML = '<div style="color:rgba(255,255,255,0.4); font-size:12px;">読み込み中...</div>';
   modal.style.display = 'flex';
+
+  try {
+    // グループメンバー取得
+    const { data: members } = await sbClient.from('group_members')
+      .select('line_uid, display_name, is_signage')
+      .eq('group_session_id', currentGroupData.id)
+      .eq('status', 'approved');
+
+    // is_signage=trueのサイネージ端末を除外
+    const humanMembers = (members || []).filter(m => !m.is_signage);
+
+    let readUids = [];
+    if (itemType === 'message') {
+      // 連絡：既読UIDs取得
+      const { data: receipts } = await sbClient.from('read_receipts')
+        .select('line_uid').eq('message_id', itemId);
+      readUids = (receipts || []).map(r => r.line_uid);
+    } else {
+      // 引き継ぎ：確認UIDs取得
+      const { data: confirmations } = await sbClient.from('handover_confirmations')
+        .select('line_uid, display_name, action').eq('handover_id', itemId);
+      readUids = (confirmations || []).map(c => c.line_uid);
+    }
+
+    const readLabel = itemType === 'message' ? '✅ 既読' : '✅ 確認済';
+    const unreadLabel = itemType === 'message' ? '⬜ 未読' : '⬜ 未確認';
+
+    const readMembers = humanMembers.filter(m => readUids.includes(m.line_uid));
+    const unreadMembers = humanMembers.filter(m => !readUids.includes(m.line_uid));
+
+    const html = `
+      <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.1); padding-top:12px;">
+        <div style="font-size:11px; color:rgba(255,255,255,0.5); margin-bottom:8px; font-weight:700;">
+          ${readLabel}（${readMembers.length}名） / ${unreadLabel}（${unreadMembers.length}名）
+        </div>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:120px;">
+            ${readMembers.length === 0
+              ? `<div style="font-size:12px; color:rgba(255,255,255,0.3);">なし</div>`
+              : readMembers.map(m => `<div style="font-size:13px; color:#4caf50; margin-bottom:4px;">✅ ${m.display_name}</div>`).join('')}
+          </div>
+          <div style="flex:1; min-width:120px;">
+            ${unreadMembers.length === 0
+              ? `<div style="font-size:12px; color:rgba(255,255,255,0.3);">全員確認済</div>`
+              : unreadMembers.map(m => `<div style="font-size:13px; color:rgba(255,255,255,0.5); margin-bottom:4px;">⬜ ${m.display_name}</div>`).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modal-members-info').innerHTML = html;
+  } catch(e) {
+    console.error('メンバー情報取得エラー:', e);
+    document.getElementById('modal-members-info').innerHTML = '';
+  }
 }
 function closeModal() {
   document.getElementById('modal-msg-detail').style.display = 'none';
