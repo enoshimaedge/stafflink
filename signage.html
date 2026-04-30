@@ -25,7 +25,7 @@
     font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif;
     background: var(--navy);
     color: var(--white);
-    min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -37,7 +37,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
+    min-height: 100dvh;
     padding: 40px;
     text-align: center;
     background: var(--navy);
@@ -51,7 +51,7 @@
   #main-screen {
     display: none;
     flex-direction: column;
-    min-height: 100vh;
+    min-height: 100dvh;
   }
   #main-screen.active { display: flex; }
 
@@ -93,39 +93,37 @@
   }
 
   /* スマホ縦画面：上にメッセージ・下に天気+QR横並び */
-  @media (orientation: portrait) {
-    .signage-body {
-      grid-template-columns: 1fr 1fr !important;
-      grid-template-rows: 1fr 150px !important;
-    }
-    #card-message {
-      grid-column: 1 / 3 !important;
-      grid-row: 1 / 2 !important;
-    }
-    #card-weather {
-      grid-column: 1 / 2 !important;
-      grid-row: 2 / 3 !important;
-    }
-    #card-qr {
-      grid-column: 2 / 3 !important;
-      grid-row: 2 / 3 !important;
-    }
-    /* 天気をスマホでは横並びに戻す */
-    .weather-row { flex-direction: row !important; gap: 6px !important; }
-    .weather-day { flex-direction: column !important; justify-content: center !important; padding: 4px !important; }
-    .weather-day-left { flex-direction: column !important; gap: 2px !important; }
-    .weather-day-label { width: auto !important; font-size: 10px !important; }
-    .weather-icon { font-size: 18px !important; }
-    .weather-temp { font-size: 15px !important; }
-    .weather-temp-range { font-size: 9px !important; }
-    .weather-temp-block { text-align: center !important; }
-    #qr-canvas img, #qr-canvas canvas { width: 70px !important; height: 70px !important; }
-    .qr-label { font-size: 8px !important; }
-    .qr-container { gap: 4px !important; }
-    .message-body { font-size: 13px !important; }
-    .s-card { padding: 8px 10px !important; }
-    .s-card-title { font-size: 10px !important; margin-bottom: 6px !important; }
+  /* 縦画面用クラス（JSで付与） */
+  .portrait .signage-body {
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: 1fr 150px !important;
   }
+  .portrait #card-message {
+    grid-column: 1 / 3 !important;
+    grid-row: 1 / 2 !important;
+  }
+  .portrait #card-weather {
+    grid-column: 1 / 2 !important;
+    grid-row: 2 / 3 !important;
+  }
+  .portrait #card-qr {
+    grid-column: 2 / 3 !important;
+    grid-row: 2 / 3 !important;
+  }
+  .portrait .weather-row { flex-direction: row !important; gap: 6px !important; }
+  .portrait .weather-day { flex-direction: column !important; justify-content: center !important; padding: 4px !important; }
+  .portrait .weather-day-left { flex-direction: column !important; gap: 2px !important; }
+  .portrait .weather-day-label { width: auto !important; font-size: 10px !important; }
+  .portrait .weather-icon { font-size: 18px !important; }
+  .portrait .weather-temp { font-size: 15px !important; }
+  .portrait .weather-temp-range { font-size: 9px !important; }
+  .portrait .weather-temp-block { text-align: center !important; }
+  .portrait #qr-canvas img, .portrait #qr-canvas canvas { width: 70px !important; height: 70px !important; }
+  .portrait .qr-label { font-size: 8px !important; }
+  .portrait .qr-container { gap: 4px !important; }
+  .portrait .message-body { font-size: 13px !important; }
+  .portrait .s-card { padding: 8px 10px !important; }
+  .portrait .s-card-title { font-size: 10px !important; margin-bottom: 6px !important; }
 
   /* ── カード共通 ── */
   .s-card {
@@ -303,7 +301,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
+    min-height: 100dvh;
     flex-direction: column;
     gap: 16px;
   }
@@ -729,6 +727,25 @@ function setupOfflineDetection() {
   if (!navigator.onLine) banner.classList.add('show');
 }
 
+// 縦横レイアウト判定（JSで強制制御）
+function applyLayout() {
+  const isPortrait = window.innerHeight > window.innerWidth;
+  if (isPortrait) {
+    document.body.classList.add('portrait');
+  } else {
+    document.body.classList.remove('portrait');
+  }
+}
+
+function setupLayoutDetection() {
+  applyLayout();
+  window.addEventListener('resize', applyLayout);
+  // orientationchangeイベントも監視
+  window.addEventListener('orientationchange', () => {
+    setTimeout(applyLayout, 100);
+  });
+}
+
 // ═══════════════════════════════════════════
 // 深夜3時 自動リロード（設計書事故ポイント⑦）
 // ═══════════════════════════════════════════
@@ -793,6 +810,7 @@ async function init() {
 
   showMain();
   setupOfflineDetection();
+  setupLayoutDetection();
   scheduleNightlyReload();
 
   // データ取得（並列）
