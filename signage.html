@@ -736,7 +736,7 @@ async function loadMessage() {
             ${readBadge}
           </div>
           <div class="message-body">${item.body || ''}</div>
-          <div class="message-time">${timeStr} 送信 　<span style="font-size:10px; color:rgba(255,255,255,0.3);">タップで全文表示</span></div>
+          <div class="message-time">${(() => { const s = allMembers.find(m => m.line_uid === item.sender_line_uid); return s ? s.display_name + '　' : ''; })()}${timeStr} 送信 　<span style="font-size:10px; color:rgba(255,255,255,0.3);">タップで全文表示</span></div>
         </div>
       `;
     }).join('');
