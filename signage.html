@@ -96,7 +96,7 @@
   /* 縦画面用クラス（JSで付与） */
   .portrait .signage-body {
     grid-template-columns: 1fr 1fr !important;
-    grid-template-rows: 1fr 150px !important;
+    grid-template-rows: 1fr 180px !important;
   }
   .portrait #card-message {
     grid-column: 1 / 3 !important;
@@ -729,7 +729,15 @@ function setupOfflineDetection() {
 
 // 縦横レイアウト判定（JSで強制制御）
 function applyLayout() {
-  const isPortrait = window.innerHeight > window.innerWidth;
+  // 複数の方法で縦画面を判定（Fully Kioskなど各種WebView対応）
+  const bySize = window.innerHeight > window.innerWidth;
+  const byScreen = screen.height > screen.width;
+  const byOrientation = screen.orientation 
+    ? screen.orientation.type.includes('portrait')
+    : (window.orientation === 0 || window.orientation === 180);
+  
+  const isPortrait = bySize || byScreen || byOrientation;
+  
   if (isPortrait) {
     document.body.classList.add('portrait');
   } else {
