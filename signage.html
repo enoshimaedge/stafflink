@@ -634,10 +634,20 @@ async function loadMessage() {
     // 引き継ぎソート：未確認優先→優先度順→新しい順
     const priorityOrderH = { action: 0, check: 1, done: 2 };
     handoverItems.sort((a, b) => {
-      if (a._fullyConfirmed !== b._fullyConfirmed) return a._fullyConfirmed ? 1 : -1;
+      // 確認状況で3段階ソート：0人確認(0)→一部確認(1)→全員確認(2)
+      const confirmOrder = (item) => {
+        if (item._fullyConfirmed) return 2;
+        if (item._confirmed > 0) return 1;
+        return 0; // 誰も確認していない
+      };
+      const ca = confirmOrder(a);
+      const cb = confirmOrder(b);
+      if (ca !== cb) return ca - cb;
+      // 同じ確認状況なら優先度順
       const pa = priorityOrderH[a.priority] ?? 1;
       const pb = priorityOrderH[b.priority] ?? 1;
       if (pa !== pb) return pa - pb;
+      // 同じなら新しい順
       return new Date(b.created_at) - new Date(a.created_at);
     });
 
@@ -650,14 +660,20 @@ async function loadMessage() {
       return new Date(b.created_at) - new Date(a.created_at);
     });
 
-    // 引き継ぎラベルを確認状況で決定
+    // 引き継ぎラベルを確認状況で決定（3段階）
     const getHandoverLabel = (item) => {
       if (item._fullyConfirmed) return { label: '🟢 引き継ぎ・確認済', cls: 'priority-info', itemCls: 'info' };
-      const baseMap = {
-        action: { label: '🔴 引き継ぎ・未確認', cls: 'priority-urgent', itemCls: 'urgent' },
-        check:  { label: '🟡 引き継ぎ・未確認', cls: 'priority-normal', itemCls: 'normal' },
-        done:   { label: '🟢 引き継ぎ・確認済', cls: 'priority-info',   itemCls: 'info' },
-      };
+      if (item._confirmed === 0) {
+        // 誰も確認していない→元のpriorityで色を決定
+        const baseMap = {
+          action: { label: '🔴 引き継ぎ・未確認', cls: 'priority-urgent', itemCls: 'urgent' },
+          check:  { label: '🟡 引き継ぎ・未確認', cls: 'priority-normal', itemCls: 'normal' },
+          done:   { label: '🟢 引き継ぎ・未確認', cls: 'priority-info',   itemCls: 'info' },
+        };
+        return baseMap[item.priority] || baseMap.check;
+      }
+      // 一部確認済→黄色
+      return { label: '🟡 引き継ぎ・一部確認済', cls: 'priority-normal', itemCls: 'normal' };
       return baseMap[item.priority] || baseMap.check;
     };
 
