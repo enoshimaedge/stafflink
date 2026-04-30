@@ -1228,7 +1228,7 @@ function stopPolling() {
 
 async function loadMessages() {
   try {
-    // messages・members・handover_notesを並列取得（起動速度改善）
+    // messages・members・handover_notes・read_receiptsを並列取得
     const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
     const [
       { data },
@@ -1249,6 +1249,24 @@ async function loadMessages() {
     messages = data || [];
     members = memberData || [];
     handoverNotes = hwData || [];
+
+    // read_receiptsを別途取得（サイネージ除外）
+    const signageUids = new Set((members || []).filter(m => m.is_signage).map(m => m.line_uid));
+    window._signageUids = signageUids;
+    const msgIds = (data || []).map(m => m.id);
+    if (msgIds.length > 0) {
+      const { data: receiptsData } = await supabase.from('read_receipts')
+        .select('message_id,line_uid').in('message_id', msgIds);
+      const receiptsMap = {};
+      (receiptsData || []).forEach(r => {
+        if (signageUids.has(r.line_uid)) return; // サイネージ除外
+        if (!receiptsMap[r.message_id]) receiptsMap[r.message_id] = new Set();
+        receiptsMap[r.message_id].add(r.line_uid);
+      });
+      window._readReceiptsMap = receiptsMap;
+    } else {
+      window._readReceiptsMap = {};
+    }
 
     // ホーム画面でも引き継ぎの確認状態を正しく表示するためconfirmationsを取得
     if (handoverNotes.length > 0) {
@@ -1362,12 +1380,13 @@ function renderMessages() {
 
     // 月内ソート：①未読あり→全員既読 ②緊急→通常→連絡
     msgs.sort((a, b) => {
+      const receiptsMap = window._readReceiptsMap || {};
+      const aReadCount = ([...(receiptsMap[a.id] || new Set())]).filter(u => u !== a.sender_line_uid).length;
+      const bReadCount = ([...(receiptsMap[b.id] || new Set())]).filter(u => u !== b.sender_line_uid).length;
       const aReceivers = a.receiver_count != null ? a.receiver_count : members.filter(m => m.line_uid !== a.sender_line_uid && !m.is_signage).length;
       const bReceivers = b.receiver_count != null ? b.receiver_count : members.filter(m => m.line_uid !== b.sender_line_uid && !m.is_signage).length;
-      const aUnread = aReceivers - (a.read_count || 0);
-      const bUnread = bReceivers - (b.read_count || 0);
-      const aHasUnread = aUnread > 0 ? 0 : 1;
-      const bHasUnread = bUnread > 0 ? 0 : 1;
+      const aHasUnread = aReadCount < aReceivers ? 0 : 1;
+      const bHasUnread = bReadCount < bReceivers ? 0 : 1;
       if (aHasUnread !== bHasUnread) return aHasUnread - bHasUnread;
       const ap = priorityOrder[a.priority || 'info'];
       const bp = priorityOrder[b.priority || 'info'];
@@ -1387,13 +1406,17 @@ function renderMessages() {
     html += `<div class="month-body ${needAccordion && !isOpen ? 'collapsed' : ''}" id="month-${monthKey}" style="max-height:${maxH};">`;
 
     msgs.forEach(msg => {
-      // receiver_countが保存済みならそれを使う（送信時点の受信者数で固定）
-      // NULLの場合（旧メッセージ）は現在のメンバーからサイネージを除いて計算
+      // read_receiptsから正確な既読数を計算（サイネージ・送信者除外済み）
+      const receiptsMap = window._readReceiptsMap || {};
+      const readUids = receiptsMap[msg.id] || new Set();
+      // 送信者を除いた既読数（送信者自身の既読は除外）
+      const readCount = [...readUids].filter(uid => uid !== msg.sender_line_uid).length;
+      // 受信者数：送信者・サイネージを除いたメンバー数
       const receiverCount = msg.receiver_count != null
         ? msg.receiver_count
         : members.filter(m => m.line_uid !== msg.sender_line_uid && !m.is_signage).length;
-      const readPct = receiverCount > 0 ? (msg.read_count || 0) / receiverCount * 100 : 0;
-      const unreadCount = receiverCount - (msg.read_count || 0);
+      const readPct = receiverCount > 0 ? readCount / receiverCount * 100 : 0;
+      const unreadCount = receiverCount - readCount;
       const senderName = getMemberName(msg.sender_line_uid);
       const timeStr = formatTime(msg.created_at);
       const p = msg.priority || 'info';
@@ -1405,7 +1428,7 @@ function renderMessages() {
           <div class="msg-meta">${senderName}　${timeStr}</div>
           <div class="msg-read-bar">
             <div class="bar"><div class="bar-fill${readPct < 70 ? ' warn' : ''}" style="width:${readPct}%"></div></div>
-            <div class="read-count">${msg.read_count || 0}/${receiverCount}人既読</div>
+            <div class="read-count">${readCount}/${receiverCount}人既読</div>
           </div>
           ${unreadCount > 0 ? `<div class="unread-names">❌ 未読：詳細を確認してください</div>` : ''}
         </div>`;
