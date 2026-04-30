@@ -167,8 +167,9 @@
     border-left: 3px solid rgba(255,255,255,0.2);
     flex-shrink: 0;
   }
-  .message-item.urgent { border-left-color: #e53935; }
-  .message-item.info { border-left-color: #1565C0; }
+  .message-item.urgent { border-left-color: #e53935; background: rgba(255,234,234,0.08); }
+  .message-item.normal { border-left-color: #f9a825; background: rgba(255,253,231,0.05); }
+  .message-item.info   { border-left-color: #66bb6a; background: rgba(241,248,244,0.05); }
   .message-priority {
     display: inline-block;
     padding: 2px 8px;
@@ -177,9 +178,9 @@
     font-weight: 700;
     margin-bottom: 6px;
   }
-  .priority-urgent { background: #e53935; color: white; }
-  .priority-info { background: #1565C0; color: white; }
-  .priority-normal { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.8); }
+  .priority-urgent { background: #ffeaea; color: #c62828; border: 1px solid #e53935; }
+  .priority-normal { background: #fffde7; color: #f57f17; border: 1px solid #f9a825; }
+  .priority-info   { background: #f1f8f4; color: #2e7d32; border: 1px solid #66bb6a; }
   .message-body {
     font-size: 15px;
     font-weight: 600;
@@ -583,25 +584,64 @@ async function loadMessage() {
       return;
     }
 
-    // 連絡のpriorityMap
+    // 連絡のpriorityMap（index.htmlと同じ色・ラベル）
     const msgPriorityMap = {
-      urgent:   { label: '🚨 緊急', cls: 'priority-urgent', itemCls: 'urgent' },
-      info:     { label: 'ℹ️ お知らせ', cls: 'priority-info', itemCls: 'info' },
-      normal:   { label: '📌 通常', cls: 'priority-normal', itemCls: '' },
+      urgent: { label: '🔴 緊急', cls: 'priority-urgent', itemCls: 'urgent', order: 0 },
+      normal: { label: '🟡 通常', cls: 'priority-normal', itemCls: 'normal', order: 1 },
+      info:   { label: '🟢 連絡', cls: 'priority-info',   itemCls: 'info',   order: 2 },
     };
 
     // 引き継ぎのpriorityMap
     const handoverPriorityMap = {
-      action: { label: '📋 引き継ぎ・要対応', cls: 'priority-urgent', itemCls: 'urgent' },
-      check:  { label: '📋 引き継ぎ・確認', cls: 'priority-info', itemCls: 'info' },
-      done:   { label: '📋 引き継ぎ・完了', cls: 'priority-normal', itemCls: '' },
+      action: { label: '🔴 引き継ぎ・要対応', cls: 'priority-urgent', itemCls: 'urgent', order: 0 },
+      check:  { label: '🟡 引き継ぎ・確認',   cls: 'priority-normal', itemCls: 'normal', order: 1 },
+      done:   { label: '🟢 引き継ぎ・完了',   cls: 'priority-info',   itemCls: 'info',   order: 2 },
     };
 
-    // 連絡と引き継ぎを時刻で統合してソート
-    const allItems = [
-      ...messages.map(m => ({ ...m, _type: 'message' })),
-      ...handovers.map(h => ({ ...h, body: h.content, _type: 'handover' }))
-    ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    // 既読・確認情報を並列取得
+    const msgIds = messages.map(m => m.id);
+    const handoverIds = handovers.map(h => h.id);
+
+    const [receiptsResult, confirmationsResult, membersResult] = await Promise.allSettled([
+      msgIds.length > 0
+        ? sbClient.from('read_receipts').select('message_id,line_uid').in('message_id', msgIds)
+        : Promise.resolve({ data: [] }),
+      handoverIds.length > 0
+        ? sbClient.from('handover_confirmations').select('handover_id,line_uid').in('handover_id', handoverIds)
+        : Promise.resolve({ data: [] }),
+      sbClient.from('group_members').select('line_uid,is_signage').eq('group_session_id', currentGroupData.id).eq('status', 'approved')
+    ]);
+
+    const receipts = receiptsResult.status === 'fulfilled' ? (receiptsResult.value.data || []) : [];
+    const confirmations = confirmationsResult.status === 'fulfilled' ? (confirmationsResult.value.data || []) : [];
+    const allMembers = membersResult.status === 'fulfilled' ? (membersResult.value.data || []) : [];
+    const humanCount = allMembers.filter(m => !m.is_signage).length;
+
+    // 既読数マップ
+    const readCountMap = {};
+    receipts.forEach(r => {
+      readCountMap[r.message_id] = (readCountMap[r.message_id] || 0) + 1;
+    });
+    const confirmedCountMap = {};
+    confirmations.forEach(c => {
+      confirmedCountMap[c.handover_id] = (confirmedCountMap[c.handover_id] || 0) + 1;
+    });
+
+    // 引き継ぎ上・連絡下、各グループ内で緊急度順→新しい順
+    const handoverItems = handovers.map(h => ({ ...h, body: h.content, _type: 'handover' }));
+    const messageItems = messages.map(m => ({ ...m, _type: 'message' }));
+
+    const sortItems = (items, priorityMap) => items.sort((a, b) => {
+      const pa = (priorityMap[a.priority] || priorityMap[Object.keys(priorityMap)[1]]).order;
+      const pb = (priorityMap[b.priority] || priorityMap[Object.keys(priorityMap)[1]]).order;
+      if (pa !== pb) return pa - pb;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+    sortItems(handoverItems, handoverPriorityMap);
+    sortItems(messageItems, msgPriorityMap);
+
+    const allItems = [...handoverItems, ...messageItems];
 
     msgList.innerHTML = allItems.map(item => {
       const p = item._type === 'handover'
@@ -614,11 +654,35 @@ async function loadMessage() {
       const mm = String(createdAt.getMinutes()).padStart(2, '0');
       const timeStr = mo + '月' + dd + '日 ' + hh + ':' + mm;
       const bodyEscaped = (item.body || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
-      const itemType = item._type;
-      const itemId = item.id;
+
+      // 既読/確認バッジ
+      let readBadge = '';
+      if (humanCount > 0) {
+        if (item._type === 'message') {
+          const readCount = readCountMap[item.id] || 0;
+          if (readCount >= humanCount) {
+            readBadge = `<span style="font-size:10px; color:#66bb6a; font-weight:700;">✅ 全員既読</span>`;
+          } else {
+            readBadge = `<span style="font-size:10px; color:#f9a825; font-weight:700;">⚠ ${readCount}/${humanCount}人既読</span>`;
+          }
+        } else {
+          const confirmedCount = confirmedCountMap[item.id] || 0;
+          if (confirmedCount >= humanCount) {
+            readBadge = `<span style="font-size:10px; color:#66bb6a; font-weight:700;">✅ 全員確認済</span>`;
+          } else if (confirmedCount === 0) {
+            readBadge = `<span style="font-size:10px; color:#e53935; font-weight:700;">❗ 未確認</span>`;
+          } else {
+            readBadge = `<span style="font-size:10px; color:#f9a825; font-weight:700;">⚠ ${confirmedCount}/${humanCount}人確認済</span>`;
+          }
+        }
+      }
+
       return `
-        <div class="message-item ${p.itemCls}" onclick="openModal('${bodyEscaped}','${p.label}','${p.cls}','${timeStr}','${itemId}','${itemType}')" style="cursor:pointer;">
-          <span class="message-priority ${p.cls}">${p.label}</span>
+        <div class="message-item ${p.itemCls}" onclick="openModal('${bodyEscaped}','${p.label}','${p.cls}','${timeStr}','${item.id}','${item._type}')" style="cursor:pointer;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span class="message-priority ${p.cls}">${p.label}</span>
+            ${readBadge}
+          </div>
           <div class="message-body">${item.body || ''}</div>
           <div class="message-time">${timeStr} 送信 　<span style="font-size:10px; color:rgba(255,255,255,0.3);">タップで全文表示</span></div>
         </div>
@@ -671,18 +735,17 @@ async function openModal(body, priorityLabel, priorityCls, timeStr, itemId, item
 
     const html = `
       <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.1); padding-top:12px;">
-        <div style="font-size:11px; color:rgba(255,255,255,0.5); margin-bottom:8px; font-weight:700;">
-          ${readLabel}（${readMembers.length}名） / ${unreadLabel}（${unreadMembers.length}名）
-        </div>
-        <div style="display:flex; gap:12px; flex-wrap:wrap;">
-          <div style="flex:1; min-width:120px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <div style="font-size:11px; color:#66bb6a; margin-bottom:6px; font-weight:700;">${readLabel}（${readMembers.length}名）</div>
             ${readMembers.length === 0
               ? `<div style="font-size:12px; color:rgba(255,255,255,0.3);">なし</div>`
-              : readMembers.map(m => `<div style="font-size:13px; color:#4caf50; margin-bottom:4px;">✅ ${m.display_name}</div>`).join('')}
+              : readMembers.map(m => `<div style="font-size:13px; color:#66bb6a; margin-bottom:4px;">✅ ${m.display_name}</div>`).join('')}
           </div>
-          <div style="flex:1; min-width:120px;">
+          <div>
+            <div style="font-size:11px; color:rgba(255,255,255,0.5); margin-bottom:6px; font-weight:700;">${unreadLabel}（${unreadMembers.length}名）</div>
             ${unreadMembers.length === 0
-              ? `<div style="font-size:12px; color:rgba(255,255,255,0.3);">全員確認済</div>`
+              ? `<div style="font-size:12px; color:rgba(255,255,255,0.3);">全員済</div>`
               : unreadMembers.map(m => `<div style="font-size:13px; color:rgba(255,255,255,0.5); margin-bottom:4px;">⬜ ${m.display_name}</div>`).join('')}
           </div>
         </div>
