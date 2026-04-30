@@ -564,6 +564,13 @@
         <label class="form-label">グループIDを入力して参加 / Join with Group ID</label>
         <input class="form-input" id="input-group-id" type="text" placeholder="例：SL-K9mX2-pQ7r" style="text-transform:uppercase;">
       </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:14px; color:var(--text-mid);">
+          <input type="checkbox" id="join-is-signage"
+            style="width:18px; height:18px; accent-color:var(--green); cursor:pointer; flex-shrink:0;">
+          <span>📺 サイネージ端末として参加する / Join as Signage</span>
+        </label>
+      </div>
       <button class="btn btn-secondary" onclick="joinGroup()">
         🔗 グループに参加する / Join
       </button>
@@ -1142,8 +1149,9 @@ async function joinGroup() {
         showScreen('screen-pending'); return;
       }
     }
+    const isSignage = document.getElementById('join-is-signage')?.checked || false;
     const { data: member, error: memberError } = await supabase.from('group_members')
-      .insert({ group_session_id: group.id, line_uid: currentUser.line_uid, display_name: displayName, status: 'pending' }).select().single();
+      .insert({ group_session_id: group.id, line_uid: currentUser.line_uid, display_name: displayName, status: 'pending', is_signage: isSignage }).select().single();
     if (memberError) throw memberError;
     localStorage.setItem('sl_member_id', member.id); localStorage.setItem('sl_group_id', groupIdInput);
     currentMemberId = member.id;
