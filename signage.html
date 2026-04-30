@@ -610,10 +610,13 @@ async function loadMessage() {
     const allMembers = membersResult.status === 'fulfilled' ? (membersResult.value.data || []) : [];
     const humanMembers = allMembers.filter(m => !m.is_signage);
     const humanCount = humanMembers.length;
+    // サイネージ端末のline_uidセット
+    const signageUids = new Set(allMembers.filter(m => m.is_signage).map(m => m.line_uid));
 
-    // 既読数マップ
+    // 既読数マップ（サイネージ端末を除外）
     const readCountMap = {};
     receipts.forEach(r => {
+      if (signageUids.has(r.line_uid)) return; // サイネージ除外
       readCountMap[r.message_id] = (readCountMap[r.message_id] || 0) + 1;
     });
     // 確認済マップ（引き継ぎIDごとの確認者リスト）
@@ -713,12 +716,12 @@ async function loadMessage() {
           }
         } else {
           const confirmedCount = item._confirmed || 0;
-          if (item._fullyConfirmed) {
-            readBadge = `<span style="font-size:10px; color:#66bb6a; font-weight:700;">✅ 全員確認済</span>`;
-          } else if (confirmedCount === 0) {
+          if (confirmedCount === 0) {
             readBadge = `<span style="font-size:10px; color:#e53935; font-weight:700;">❗ 未確認</span>`;
           } else {
-            readBadge = `<span style="font-size:10px; color:#f9a825; font-weight:700;">⚠ ${confirmedCount}/${humanCount}人確認済</span>`;
+            // 誰か1人でも確認したら「対応済」→確認者名を表示
+            const confirmerNames = (confirmedMap[item.id] || []).map(c => c.display_name).join('・');
+            readBadge = `<span style="font-size:10px; color:#66bb6a; font-weight:700;">✅ ${confirmerNames}が確認済</span>`;
           }
         }
       }

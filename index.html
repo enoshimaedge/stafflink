@@ -1372,10 +1372,10 @@ function renderMessages() {
 
     msgs.forEach(msg => {
       // receiver_countが保存済みならそれを使う（送信時点の受信者数で固定）
-      // NULLの場合（旧メッセージ）は現在のメンバーから計算
+      // NULLの場合（旧メッセージ）は現在のメンバーからサイネージを除いて計算
       const receiverCount = msg.receiver_count != null
         ? msg.receiver_count
-        : members.filter(m => m.line_uid !== msg.sender_line_uid).length;
+        : members.filter(m => m.line_uid !== msg.sender_line_uid && !m.is_signage).length;
       const readPct = receiverCount > 0 ? (msg.read_count || 0) / receiverCount * 100 : 0;
       const unreadCount = receiverCount - (msg.read_count || 0);
       const senderName = getMemberName(msg.sender_line_uid);
