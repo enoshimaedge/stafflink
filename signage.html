@@ -415,7 +415,7 @@ const ALL_HOLIDAYS = { ...HOLIDAYS_2025, ...HOLIDAYS_2026 };
 // ═══════════════════════════════════════════
 // グローバル変数
 // ═══════════════════════════════════════════
-let supabase = null;
+let sbClient = null;
 let currentGroupData = null;
 let updateTimer = null;
 
@@ -470,7 +470,7 @@ async function authenticate() {
 
   // ② DBでトークン照合
   try {
-    const { data: group, error } = await supabase
+    const { data: group, error } = await sbClient
       .from('group_sessions')
       .select('*')
       .eq('group_id', gid)
@@ -503,7 +503,7 @@ async function authenticate() {
 // ═══════════════════════════════════════════
 async function loadMessage() {
   try {
-    const { data: messages } = await supabase
+    const { data: messages } = await sbClient
       .from('messages')
       .select('*')
       .eq('group_session_id', currentGroupData.id)
@@ -670,7 +670,7 @@ function startPolling() {
     const gid = params.get('gid');
     const token = params.get('token');
     try {
-      const { data: group } = await supabase
+      const { data: group } = await sbClient
         .from('group_sessions')
         .select('*')
         .eq('group_id', gid)
@@ -697,7 +697,7 @@ function startPolling() {
 // ═══════════════════════════════════════════
 async function init() {
   // Supabase初期化
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // 認証（3段階）
   const ok = await authenticate();
