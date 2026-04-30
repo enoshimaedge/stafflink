@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EdgeOps サイネージ</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -329,7 +329,7 @@
     <div class="s-card" id="card-qr">
       <div class="s-card-title">📱 グループ参加QR</div>
       <div class="qr-container">
-        <canvas id="qr-canvas"></canvas>
+        <div id="qr-canvas" style="background:white; border-radius:8px; padding:6px; display:inline-block;"></div>
         <div class="qr-label">
           このQRでEdgeOpsグループに参加<br>
           <span style="font-size:10px; color:rgba(255,255,255,0.35);">※このQRは無効になることがあります</span>
@@ -620,12 +620,15 @@ async function loadWeather() {
 function generateQR() {
   try {
     const joinUrl = 'https://liff.line.me/2009827939-rZo06gWm';
-    QRCode.toCanvas(document.getElementById('qr-canvas'), joinUrl, {
+    const container = document.getElementById('qr-canvas');
+    container.innerHTML = '';
+    new QRCode(container, {
+      text: joinUrl,
       width: 120,
-      margin: 1,
-      color: { dark: '#0f1e35', light: '#ffffff' }
-    }, (err) => {
-      if (err) console.error('QR生成エラー:', err);
+      height: 120,
+      colorDark: '#0f1e35',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
     });
   } catch (e) {
     console.error('QR生成エラー:', e);
@@ -719,13 +722,21 @@ async function init() {
 }
 
 // 起動
-// QRCodeライブラリの読み込みを待ってから初期化
+// ライブラリ読み込み待機（最大5秒）してから初期化
 function waitForLibsAndInit() {
-  if (typeof QRCode === 'undefined' || typeof window.supabase === 'undefined') {
-    setTimeout(waitForLibsAndInit, 100);
-    return;
-  }
-  init();
+  let waited = 0;
+  const check = () => {
+    if (typeof window.supabase !== 'undefined') {
+      init(); // QRCodeがなくてもinitは実行（generateQR内でtry/catchしている）
+    } else if (waited < 5000) {
+      waited += 100;
+      setTimeout(check, 100);
+    } else {
+      // タイムアウト：supabaseだけ未読み込みなら諦めてエラー表示
+      showError('ライブラリ読み込みエラー', 'ページを再読み込みしてください。');
+    }
+  };
+  check();
 }
 
 if (document.readyState === 'loading') {
