@@ -85,8 +85,8 @@
   .signage-body {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 180px;
+    grid-template-columns: 1fr 260px;
+    grid-template-rows: 1fr 1fr;
     gap: 10px;
     padding: 10px;
     overflow: hidden;
@@ -114,8 +114,8 @@
 
   /* ── 今日の連絡カード ── */
   #card-message {
-    grid-column: 1 / 3;
-    grid-row: 1 / 2;
+    grid-column: 1 / 2;
+    grid-row: 1 / 3;
     overflow: hidden;
   }
   .message-list {
@@ -169,8 +169,8 @@
 
   /* ── 天気カード ── */
   #card-weather {
-    grid-column: 1 / 2;
-    grid-row: 2 / 3;
+    grid-column: 2 / 3;
+    grid-row: 1 / 2;
   }
   .weather-row {
     display: flex;
@@ -328,7 +328,7 @@
 
     <!-- 天気・祝日 -->
     <div class="s-card" id="card-weather">
-      <div class="s-card-title">🌤 天気・気温</div>
+      <div class="s-card-title">🌤 天気・気温　<span id="weather-region-name" style="font-size:10px; color:rgba(255,255,255,0.4); font-weight:400; letter-spacing:0;"></span></div>
       <div class="weather-row" id="weather-row">
         <div class="weather-error">取得中...</div>
       </div>
@@ -347,6 +347,18 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- メッセージ詳細モーダル -->
+<div id="modal-msg-detail" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:100; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:#1a2f4a; border-radius:16px; max-width:500px; width:100%; padding:24px; position:relative; max-height:80vh; overflow-y:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <div id="modal-priority-badge"></div>
+      <div onclick="closeModal()" style="font-size:28px; cursor:pointer; color:rgba(255,255,255,0.5); line-height:1;">×</div>
+    </div>
+    <div id="modal-body" style="font-size:18px; font-weight:600; color:white; line-height:1.6; margin-bottom:16px;"></div>
+    <div id="modal-time" style="font-size:12px; color:rgba(255,255,255,0.4);"></div>
   </div>
 </div>
 
@@ -542,11 +554,12 @@ async function loadMessage() {
       const hh = String(createdAt.getHours()).padStart(2, '0');
       const mm = String(createdAt.getMinutes()).padStart(2, '0');
       const timeStr = mo + '月' + dd + '日 ' + hh + ':' + mm;
+      const bodyEscaped = (msg.body || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
       return `
-        <div class="message-item ${p.itemCls}">
+        <div class="message-item ${p.itemCls}" onclick="openModal('${bodyEscaped}','${p.label}','${p.cls}','${timeStr}')" style="cursor:pointer;">
           <span class="message-priority ${p.cls}">${p.label}</span>
           <div class="message-body">${msg.body || ''}</div>
-          <div class="message-time">${timeStr} 送信</div>
+          <div class="message-time">${timeStr} 送信 　<span style="font-size:10px; color:rgba(255,255,255,0.3);">タップで全文表示</span></div>
         </div>
       `;
     }).join('');
@@ -558,6 +571,18 @@ async function loadMessage() {
   }
 }
 
+// メッセージ詳細モーダル
+function openModal(body, priorityLabel, priorityCls, timeStr) {
+  const modal = document.getElementById('modal-msg-detail');
+  document.getElementById('modal-priority-badge').innerHTML = `<span class="message-priority ${priorityCls}">${priorityLabel}</span>`;
+  document.getElementById('modal-body').textContent = body;
+  document.getElementById('modal-time').textContent = timeStr + ' 送信';
+  modal.style.display = 'flex';
+}
+function closeModal() {
+  document.getElementById('modal-msg-detail').style.display = 'none';
+}
+
 // ═══════════════════════════════════════════
 // 天気・気温を取得・表示（Open-Meteo・APIキー不要）
 // ═══════════════════════════════════════════
@@ -566,6 +591,11 @@ async function loadWeather() {
   try {
     const region = currentGroupData.region || 'other';
     const coords = REGION_COORDS[region] || REGION_COORDS.other;
+    // エリア名を表示
+    const regionNameEl = document.getElementById('weather-region-name');
+    if (regionNameEl && coords.name !== '---') {
+      regionNameEl.textContent = '📍 ' + coords.name;
+    }
 
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lng}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Asia%2FTokyo&forecast_days=2`;
 
